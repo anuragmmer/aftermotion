@@ -7,6 +7,10 @@ A grid puzzle game built from `Aftermotion_Mechanics_Specification_v0.1.md`. Sta
 ## Play
 Open `index.html`, or enable **Settings → Pages → Deploy from a branch** (root) or **GitHub Actions** (a workflow is included). Controls: arrows/WASD move, `Z` undo, `R` restart, `F` favour, `H` hop (then click a tile), `O` oracle, `M` levels. Touch D-pad on mobile.
 
+## Design docs
+- `Aftermotion_Mechanics_Specification_v0.1.md`: original mechanics spec (what the prototype implements).
+- `Aftermotion_Design_Specification_v0.2.md`: redesign: composable echoes, 1000-level plan, generator, variants, economy.
+
 ## Layout
 - `js/engine.js`: deterministic simulation (spec §3, §5–§8, §9, §12, §14). No DOM, no RNG; timers count accepted player actions.
 - `js/levels.js`: data-driven levels (legend in the file header).
