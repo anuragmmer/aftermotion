@@ -1,362 +1,684 @@
-/* Aftermotion UI: reads state from the engine and sends commands; no rules live here. */
+/* Aftermotion app: screens, DOM board renderer, effects and input.
+ * Rules live in engine.js, rewards in progress.js; this file only presents state and sends commands. */
 (function () {
   'use strict';
-  const AM = window.AM, LEVELS = window.AMLevels, CFG = AM.CONFIG;
-  const $ = (id) => document.getElementById(id);
-  const cv = $('cv'), ctx = cv.getContext('2d');
-  const COLORS = { trace: '#5ec8ff', flicker: '#ffd35e', mason: '#ff9a5e', keeper: '#8cff9c' };
-  const SAVE_KEY = 'aftermotion.v1';
+  const AM = window.AM, LEVELS = window.AMLevels, P = window.AMProgress, SFX = window.AMAudio;
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => Array.from(document.querySelectorAll(s));
+  const ROT = { UP: 0, RIGHT: 90, DOWN: 180, LEFT: 270 };
+  const ARROW = (dir, cls) => '<svg class="' + (cls || '') + '" style="transform:rotate(' + ROT[dir] + 'deg)"><use href="#i-arrow"/></svg>';
+  const STAR = '<svg><use href="#i-star"/></svg>';
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const today = () => new Date().toISOString().slice(0, 10);
 
-  let idx = 0, L, S, undo = [], log = [], hopMode = false, oracleOn = false, ts = 48, hover = null;
+  const ECHO_INFO = {
+    trace: { name: 'Trace', glyph: 'T', color: '#ffc24b', b: 4, sel: 'First move', verb: 'Walk', role: 'Copies the first move of every 4.', tips: ['Plan the first move of each batch; the other three are free.', 'A blocked attempt still uses up the batch, so walls let Trace wait.'] },
+    flicker: { name: 'Flicker', glyph: 'F', color: '#c49bff', b: 2, sel: 'First move', verb: 'Walk + Hop', role: 'Copies the first move of every 2. Can hop.', tips: ['Twice as responsive as Trace, so it drifts quickly.', 'Press H and tap a glowing tile: Flicker hops there (even over walls), holds it for 4 moves, then returns.'] },
+    mason: { name: 'Mason', glyph: 'M', color: '#ff9a5e', b: 4, sel: 'First move', verb: 'Build', role: 'Builds a temporary block where its batch head points.', tips: ['Mason never walks. Aim the first move of a batch at the tile you want built.', 'A block on a plate holds its door until the block expires.'] },
+    keeper: { name: 'Keeper', glyph: 'K', color: '#6dffb3', b: 3, sel: 'Any', verb: 'Send helper', role: 'Every 3 moves, sends a helper to the nearest free plate.', tips: ['Helpers walk on their own and hold a plate for 6 moves.', 'If a helper cannot arrive in time, it fades away.'] },
+    blocker: { name: 'Blocker', glyph: '!', color: '#ff5c8a', b: 0, sel: '—', verb: 'Corrupt', role: 'Hostile. Telegraphs a tile, then drops a corruption block on it.', tips: ['The red reticle shows where and when it strikes.', 'Corruption fades after 6 moves.'], hostile: true },
+  };
+  const firstLevelWith = (key) => {
+    const ch = { trace: 'T', flicker: 'F', mason: 'M', keeper: 'K', blocker: 'Z' }[key];
+    const l = LEVELS.find((d) => d.map.some((r) => r.includes(ch)));
+    return l ? l.id : null;
+  };
 
-  /* ---------- persistence (best-effort) ---------- */
-  function loadSave() { try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || { best: {} }; } catch (e) { return { best: {} }; } }
-  function writeSave(s) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(s)); } catch (e) { /* ignore */ } }
-  let save = loadSave();
+  let prog = P.load();
+  let screen = 'title', G = null, mapSel = null, echoSel = 'trace';
+  const board = $('#board'), frame = $('#frame');
+  let tileEls = [], actorsEl = null, actorEls = new Map(), checkToken = 0;
 
-  /* ---------- level lifecycle ---------- */
-  function start(i) {
-    idx = Math.max(0, Math.min(LEVELS.length - 1, i));
-    const r = AM.loadLevel(LEVELS[idx]);
-    L = r.level; S = r.state; undo = []; log = []; hopMode = false;
-    $('lvlName').textContent = L.id + '. ' + L.name;
-    $('lvlMode').textContent = L.mode === 'together' ? 'Escape Together' : 'Escape Through the Echo';
-    $('intro').textContent = L.intro;
-    $('hudPar').textContent = L.par || '-';
-    closeOverlay();
-    addLog([{ text: 'Level start. Your accepted moves feed every echo\'s batch.' }]);
-    resize(); refresh();
+  const reduced = () => prog.reduceMotion || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const anim = (el, frames, opts) => { if (!el || reduced() || !el.animate) return null; return el.animate(frames, Object.assign({ duration: 200, easing: 'ease-out' }, opts)); };
+  const buzz = (ms) => { try { if (!reduced() && navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* unsupported */ } };
+  function persist() { P.save(prog); }
+  function coins() { $$('.coinCount').forEach((el) => (el.textContent = prog.coins.toLocaleString('en-US'))); }
+  function applySettings() { SFX.setEnabled(!!prog.sound); document.body.classList.toggle('reduce', !!prog.reduceMotion); }
+
+  /* ================= screens ================= */
+  function show(name) {
+    screen = name;
+    $$('.screen').forEach((s) => (s.hidden = s.id !== name));
+    closeModal();
+    coins();
+    if (name === 'title') renderTitle();
+    if (name === 'map') renderMap();
+    if (name === 'echoes') renderEchoes();
+    window.scrollTo(0, 0);
   }
-  function restart() { start(idx); }
 
-  function commit(next, events) {
-    undo.push(S);
-    if (undo.length > 500) undo.shift();
-    S = next; hopMode = false;
-    addLog(events);
-    refresh();
-    if (S.status === 'won') finish(true);
-    else if (S.status === 'lost') finish(false);
+  function renderTitle() {
+    const done = LEVELS.filter((l) => prog.levels[l.id] && prog.levels[l.id].clears).length;
+    const next = P.nextLevelIndex(prog, LEVELS);
+    $('#tContinueLabel').textContent = done === 0 ? 'Play' : done === LEVELS.length ? 'Replay · Level ' + LEVELS[next].id : 'Continue · Level ' + LEVELS[next].id;
+    $('#tStarCount').textContent = P.totalStars(prog);
+    $('#tStars').textContent = P.totalStars(prog) + ' / ' + LEVELS.length * 3 + '★';
+    const seen = Object.keys(ECHO_INFO).filter((k) => prog.seen[k]).length;
+    $('#tEchoes').textContent = seen + ' / ' + Object.keys(ECHO_INFO).length;
+  }
+
+  /* ---------- map ---------- */
+  function mapPoints() {
+    const xs = [130, 375, 625, 870], pts = [];
+    for (let i = 0; i < LEVELS.length + 1; i++) {
+      const row = Math.floor(i / 4), col = i % 4, c = row % 2 ? 3 - col : col;
+      pts.push({ x: xs[c], y: 95 + row * 210 + Math.sin(i * 1.7) * 14 });
+    }
+    return pts;
+  }
+  function levelChips(def) {
+    const s = def.map.join(''), out = [];
+    if (s.includes('T')) out.push('Trace'); if (s.includes('F')) out.push('Flicker'); if (s.includes('M')) out.push('Mason'); if (s.includes('K')) out.push('Keeper');
+    if (/[a-d]/.test(s)) out.push('Plate + door'); if (s.includes('o')) out.push('Push block'); if (s.includes('c')) out.push('Coins'); if (s.includes('Z')) out.push('Blocker');
+    if (def.maxMoves) out.push(def.maxMoves + ' move limit');
+    out.push(def.mode === 'together' ? 'Escape together' : 'Escape through');
+    return out;
+  }
+  function renderMap() {
+    const pts = mapPoints(), cur = P.nextLevelIndex(prog, LEVELS);
+    if (mapSel === null) mapSel = cur;
+    const toPct = (p) => ({ left: p.x / 10 + '%', top: (p.y / 620) * 100 + '%' });
+    const d = (arr) => arr.map((p, i) => (i ? 'L' : 'M') + p.x + ' ' + p.y.toFixed(0)).join(' ');
+    $('#mapPathAll').setAttribute('d', d(pts));
+    const doneCount = LEVELS.filter((l) => prog.levels[l.id] && prog.levels[l.id].clears).length;
+    $('#mapPathDone').setAttribute('d', d(pts.slice(0, Math.min(doneCount, LEVELS.length - 1) + 1)));
+    let html = '';
+    LEVELS.forEach((l, i) => {
+      const rec = prog.levels[l.id], unlocked = P.isUnlocked(prog, LEVELS, i), p = toPct(pts[i]);
+      const cls = 'node' + (!unlocked ? ' locked' : i === cur && !(rec && rec.clears) ? ' cur' : '') + (i === mapSel ? ' sel' : '');
+      const stars = rec && rec.clears ? '<span class="nstars">' + [1, 2, 3].map((k) => '<svg style="fill:' + (k <= rec.stars ? 'var(--gold)' : 'transparent') + '"><use href="#i-star"/></svg>').join('') + '</span>' : '';
+      html += '<button class="' + cls + '" data-i="' + i + '" style="left:' + p.left + ';top:' + p.top + '" aria-label="Level ' + l.id + (unlocked ? '' : ' (locked)') + '">' +
+        (unlocked ? l.id : '<svg><use href="#i-lock"/></svg>') + stars + '</button>';
+    });
+    const fp = toPct(pts[LEVELS.length]);
+    html += '<div class="node future" style="left:' + fp.left + ';top:' + fp.top + '"><svg><use href="#i-lock"/></svg>World 2</div>';
+    const ap = toPct(pts[cur]);
+    html += '<div class="avatar" style="left:' + ap.left + ';top:' + ap.top + '"></div>';
+    $('#mapNodes').innerHTML = html;
+    $$('#mapNodes .node[data-i]').forEach((b) => (b.onclick = () => {
+      const i = +b.dataset.i;
+      if (!P.isUnlocked(prog, LEVELS, i)) { toast('Clear level ' + LEVELS[i - 1].id + ' to unlock this one.'); SFX.echoBlocked(); return; }
+      SFX.click();
+      if (mapSel === i) startLevel(i); else { mapSel = i; renderMap(); }
+    }));
+    renderMapInfo();
+  }
+  function renderMapInfo() {
+    const i = mapSel, l = LEVELS[i], rec = prog.levels[l.id], unlocked = P.isUnlocked(prog, LEVELS, i);
+    const base = P.baseReward(l), coinsIn = l.map.join('').split('').filter((c) => c === 'c' || c === '*').length;
+    const maxFirst = Math.round(base * 1.5) + Math.round(base * 1.5 * 0.1) + coinsIn * P.RULES.coinValue;
+    $('#mapInfo').innerHTML =
+      '<h3>Level ' + l.id + '</h3><div class="lvl-name">' + esc(l.name) + '</div>' +
+      '<div class="stars-row">' + [1, 2, 3].map((k) => '<svg style="fill:' + (rec && k <= rec.stars ? 'var(--gold)' : 'transparent') + '"><use href="#i-star"/></svg>').join('') + '</div>' +
+      '<div class="chips">' + levelChips(l).map((c) => '<span class="chip">' + esc(c) + '</span>').join('') + '</div>' +
+      '<p class="dim small" style="margin:0">' + esc(l.intro) + '</p>' +
+      '<div class="small">Par <b>' + (l.par || '—') + '</b>' + (rec && rec.best !== null ? ' · Best <b>' + rec.best + '</b>' : '') + '</div>' +
+      '<div class="small dim">' + (rec && rec.clears ? esc(P.nextReplayInfo(P.record(prog, l.id), Date.now())) : 'First clear pays up to ' + maxFirst + ' coins.') + '</div>' +
+      '<button class="btn gold big" id="mapPlay"' + (unlocked ? '' : ' disabled') + '><svg><use href="#i-play"/></svg>' + (unlocked ? (rec && rec.clears ? 'Replay' : 'Play') : 'Locked') + '</button>';
+    $('#mapPlay').onclick = () => startLevel(i);
+  }
+
+  /* ---------- echoes ---------- */
+  function renderEchoes() {
+    const keys = Object.keys(ECHO_INFO), seen = keys.filter((k) => prog.seen[k]).length;
+    $('#eCount').textContent = seen + ' OF ' + keys.length + ' DISCOVERED';
+    let html = '<div class="section-label">ALLIES</div>';
+    keys.forEach((k) => {
+      const e = ECHO_INFO[k], known = !!prog.seen[k];
+      if (k === 'blocker') html += '<div class="section-label">HOSTILES</div>';
+      html += '<button class="ecard-btn' + (known ? '' : ' locked') + (echoSel === k ? ' sel' : '') + '" data-k="' + k + '">' +
+        '<div class="glyph ' + k + '"><span>' + (known ? e.glyph : '?') + '</span></div><b>' + (known ? e.name : '???') + '</b>' +
+        '<small style="color:' + (known ? 'var(--mint)' : 'var(--dim)') + '">' + (known ? (e.hostile ? 'Hostile' : 'Batch ' + e.b) : 'Meet in level ' + firstLevelWith(k)) + '</small></button>';
+    });
+    $('#echoGrid').innerHTML = html;
+    $$('#echoGrid .ecard-btn').forEach((b) => (b.onclick = () => { echoSel = b.dataset.k; SFX.click(); renderEchoes(); }));
+    const e = ECHO_INFO[echoSel], known = !!prog.seen[echoSel];
+    $('#echoDetail').innerHTML = known
+      ? '<div class="echo-hero"><div class="orbit"><div class="glyph ' + echoSel + '" style="--g:92px"><span>' + e.glyph + '</span></div></div><div><div class="disp" style="font-size:32px;color:' + e.color + '">' + e.name + '</div><div class="small" style="color:#d9d3ff">' + esc(e.role) + '</div></div></div>' +
+        '<div class="stat-grid"><div class="stat"><span>COPIES</span><b>' + e.sel + '</b></div><div class="stat"><span>ACTION</span><b>' + e.verb + '</b></div>' +
+        '<div class="stat"><span>BATCH</span><b>' + (e.b ? e.b + ' moves' : '—') + '</b></div><div class="stat"><span>FIRST SEEN</span><b>Level ' + firstLevelWith(echoSel) + '</b></div></div>' +
+        '<h3 style="margin:4px 0 0">Tips</h3><ul class="help-list">' + e.tips.map((t) => '<li>' + esc(t) + '</li>').join('') + '</ul>' +
+        '<p class="small dim" style="margin:0">Upgrades and new echoes arrive with future worlds.</p>'
+      : '<div class="echo-hero"><div class="orbit"><div class="glyph ' + echoSel + '" style="--g:92px;filter:grayscale(1) brightness(.4)"><span>?</span></div></div><div><div class="disp" style="font-size:30px">Undiscovered</div><div class="small dim">Reach level ' + firstLevelWith(echoSel) + ' to meet this one.</div></div></div>';
+  }
+
+  /* ================= game ================= */
+  function startLevel(i, opts) {
+    const def = LEVELS[i], r = AM.loadLevel(def);
+    G = { idx: i, def, L: r.level, S: r.state, undo: [], log: [], hop: false, oracle: G ? G.oracle : false, usedHint: false, hint: null, trail: [], startCoins: r.state.coins.length };
+    r.state.echoes.forEach((e) => (prog.seen[e.type] = true));
+    if (r.state.enemy) prog.seen.blocker = true;
+    persist();
+    show('game');
+    $('#gWorld').textContent = 'WORLD 1 · FIRST LIGHT · LEVEL ' + def.id;
+    $('#gName').textContent = def.name;
+    buildBoard(); buildCards(); fit();
+    const tip = $('#tip');
+    if (!(opts && opts.restart)) {
+      tip.innerHTML = '<div><b>' + esc(def.name) + '</b><p>' + esc(def.intro) + '</p></div><button id="tipOk">Go!</button>';
+      tip.hidden = false;
+      $('#tipOk').onclick = () => (tip.hidden = true);
+    } else tip.hidden = true;
+    addLog([{ text: 'Level start. Your moves feed every echo\'s batch.' }]);
+    render(true);
+  }
+
+  function buildBoard() {
+    const L = G.L;
+    board.innerHTML = ''; tileEls = []; actorEls = new Map();
+    board.style.setProperty('--w', L.w);
+    board.classList.remove('stuck-fx'); $('#stuck').hidden = true;
+    for (let y = 0; y < L.h; y++) {
+      const row = [];
+      for (let x = 0; x < L.w; x++) {
+        const el = document.createElement('div'), k = AM.key(x, y);
+        el.dataset.x = x; el.dataset.y = y;
+        let cls = 'tile ' + (L.tiles[y][x] === '#' ? 'wall' : 'floor' + ((x + y) % 2 ? ' alt' : ''));
+        let lbl = '';
+        if (L.plates[k]) { cls += ' plate'; lbl = L.plates[k].toLowerCase(); }
+        if (L.doors[k]) { cls = 'tile floor door'; lbl = L.doors[k]; }
+        if (AM.isExit(L, x, y)) cls += ' exit';
+        el.className = cls;
+        if (lbl) el.innerHTML = '<span class="lbl">' + lbl + '</span>';
+        board.appendChild(el); row.push(el);
+      }
+      tileEls.push(row);
+    }
+    actorsEl = document.createElement('div'); actorsEl.className = 'actors'; board.appendChild(actorsEl);
+  }
+
+  function fit() {
+    if (!G) return;
+    const L = G.L, narrow = window.innerWidth <= 980;
+    const availW = $('#stage').clientWidth - 24;
+    const availH = narrow ? window.innerHeight * 0.58 : window.innerHeight - 240;
+    const ts = Math.max(24, Math.floor(Math.min(availW / L.w, availH / L.h, 66)));
+    board.style.setProperty('--ts', ts + 'px');
+  }
+
+  /* ---------- keyed actor sync ---------- */
+  function actor(key, cls, html, x, y, seen) {
+    seen.add(key);
+    let el = actorEls.get(key);
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'actor instant ' + cls; el.innerHTML = html;
+      actorsEl.appendChild(el); actorEls.set(key, el);
+      el.style.transform = 'translate(' + x * 100 + '%,' + y * 100 + '%)';
+      requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('instant')));
+      anim(el, [{ opacity: 0, transform: el.style.transform + ' scale(.4)' }, { opacity: 1, transform: el.style.transform }], { duration: 220, easing: 'cubic-bezier(.3,1.4,.5,1)' });
+      el._new = true;
+    } else {
+      el._new = false;
+      el.className = 'actor ' + cls + (el.classList.contains('instant') ? ' instant' : '');
+      el.style.transform = 'translate(' + x * 100 + '%,' + y * 100 + '%)';
+    }
+    return el;
+  }
+  function sweep(seen) {
+    for (const [k, el] of actorEls) {
+      if (seen.has(k)) continue;
+      actorEls.delete(k);
+      const a = anim(el, [{ opacity: 1 }, { opacity: 0, transform: el.style.transform + ' scale(.3)' }], { duration: 220 });
+      if (a) a.onfinish = () => el.remove(); else el.remove();
+    }
+  }
+
+  function render(instant) {
+    const L = G.L, S = G.S, seen = new Set();
+    if (instant) for (const el of actorEls.values()) el.classList.add('instant');
+    // tiles
+    const ready = AM.exitReady(L, S), hopE = G.hop ? hopper() : null;
+    for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
+      const el = tileEls[y][x], k = AM.key(x, y);
+      if (L.plates[k]) el.classList.toggle('on', !!S.plateActive[L.plates[k]]);
+      if (L.doors[k]) el.classList.toggle('open', !!S.open[L.doors[k]]);
+      if (AM.isExit(L, x, y)) el.classList.toggle('locked', !ready);
+      el.classList.toggle('hopok', !!hopE && L.tiles[y][x] !== '#' && !AM.hopError(L, S, hopE, x, y));
+    }
+    // actors
+    S.coins.forEach((c) => actor('coin' + c.x + ',' + c.y, 'coinA', '<div class="coin' + (c.rare ? ' rare' : '') + '"></div>', c.x, c.y, seen));
+    let pi = 0;
+    for (const b of S.blocks) {
+      if (b.kind === 'push') actor('push' + pi++, 'blockA', '<div class="crate"></div>', b.x, b.y, seen);
+      else {
+        const el = actor(b.kind + b.x + ',' + b.y, 'blockA', '<div class="' + (b.kind === 'temp' ? 'tblock' : 'cblock') + '"><span></span></div>', b.x, b.y, seen);
+        el.querySelector('span').textContent = b.ttl;
+      }
+    }
+    if (S.enemy) {
+      const en = S.enemy;
+      actor('enemy', 'enemy' + (en.state === 'TELEGRAPH' ? ' armed' : ''), '<div class="gem"></div><div class="eye"></div>', en.x, en.y, seen);
+      if (en.state === 'TELEGRAPH' && en.target) actor('tele', 'tele', '<div class="ret"></div><b></b>', en.target.x, en.target.y, seen).querySelector('b').textContent = en.t;
+    }
+    for (const h of S.helpers) actor('helper' + h.id, 'helper', '<div class="dia"></div><b></b>', h.x, h.y, seen).querySelector('b').textContent = h.state === 'PERFORM' ? h.hold : h.life;
+    G.trail.forEach((p, i) => { const el = actor('trail' + i, 'trail', '<div class="dot"></div>', p.x, p.y, seen); el.style.opacity = 0.32 - i * 0.1; el.firstChild.style.transform = 'scale(' + (1 - i * 0.22) + ')'; });
+    for (const e of S.echoes) {
+      if (e.hopping && e.hop.origin) actor('ghost' + e.id, 'echo ghost-origin ' + e.type, '<div class="shape"><span>' + ECHO_INFO[e.type].glyph + '</span></div>', e.hop.origin.x, e.hop.origin.y, seen);
+      const el = actor('echo' + e.id, 'echo ' + e.type + (e.required ? ' required' : '') + (e.state === 'FAVOURED' ? ' fav' : '') + (e.state === 'COOLDOWN' ? ' cool' : ''),
+        '<div class="shape"><span>' + ECHO_INFO[e.type].glyph + '</span></div><div class="pips"></div><svg class="head"><use href="#i-arrow"/></svg>', e.x, e.y, seen);
+      el.style.setProperty('--c', ECHO_INFO[e.type].color);
+      const size = e.counter === 0 ? AM.batchSize(e) : e.activeB;
+      const pips = el.querySelector('.pips');
+      if (pips.childElementCount !== size) pips.innerHTML = '<i></i>'.repeat(size);
+      Array.from(pips.children).forEach((p, i) => p.classList.toggle('on', i < e.counter));
+      const head = el.querySelector('.head');
+      head.style.display = e.batch.length && e.type !== 'keeper' ? '' : 'none';
+      if (e.batch.length) head.style.transform = 'rotate(' + ROT[e.batch[0]] + 'deg)';
+    }
+    actor('player', 'playerA', '<div class="orb-bob"><div class="orb"></div></div>', S.player.x, S.player.y, seen);
+    // hint marker
+    if (G.hint) {
+      const a = G.hint;
+      if (a.k === 'move') { const d = AM.DELTA[a.d]; actor('hint', 'hintArrow', ARROW(a.d), S.player.x + d[0], S.player.y + d[1], seen).innerHTML = ARROW(a.d); }
+      else if (a.k === 'hop') actor('hint', 'hintArrow', '<div class="hintTile"></div>', a.x, a.y, seen);
+    }
+    sweep(seen);
+    renderPanel();
+  }
+
+  function hopper() { return G.S.echoes.find((e) => e.hop && !e.hopping && e.hop.charges > 0 && e.state !== 'COOLDOWN'); }
+
+  /* ---------- side panel ---------- */
+  function buildCards() {
+    $('#echoCards').innerHTML = G.S.echoes.map((e) => {
+      const info = ECHO_INFO[e.type];
+      return '<div class="ecard" data-id="' + e.id + '" style="--c:' + info.color + '"><div class="ecard-top"><div class="glyph ' + e.type + '"><span>' + info.glyph + '</span></div>' +
+        '<div><b>' + info.name + '</b><small>' + esc(info.role) + '</small></div>' + (e.required ? '<span class="etag">REQUIRED</span>' : '') + '</div>' +
+        '<div class="tape"></div><div class="estatus"></div></div>';
+    }).join('');
+  }
+  function renderPanel() {
+    const L = G.L, S = G.S;
+    for (const e of S.echoes) {
+      const card = $('#echoCards .ecard[data-id="' + e.id + '"]'); if (!card) continue;
+      const tape = card.querySelector('.tape'), size = e.counter === 0 ? AM.batchSize(e) : e.activeB;
+      if (tape.childElementCount !== size) tape.innerHTML = '<div class="slot"></div>'.repeat(size);
+      Array.from(tape.children).forEach((slot, i) => {
+        const d = e.batch[i];
+        slot.classList.toggle('filled', !!d);
+        slot.classList.toggle('head', !!d && i === 0 && e.type !== 'keeper');
+        if (d && slot.dataset.d !== d) { slot.innerHTML = ARROW(d); slot.dataset.d = d; }
+        if (!d && slot.dataset.d) { slot.innerHTML = ''; delete slot.dataset.d; }
+      });
+      const st = e.hopping ? 'HOPPING' : e.state;
+      let txt = '<span class="' + st + '">' + (st === 'NORMAL' ? '' : st + ' · ') + '</span>';
+      if (e.hopping) txt += 'returns in ' + e.hop.hold;
+      else if (e.state === 'FAVOURED') txt += e.favour + ' moves of favour left · ';
+      else if (e.state === 'COOLDOWN') txt += 'recovers in ' + e.cooldown + ' · ';
+      if (!e.hopping) { const left = size - e.counter; txt += 'acts in ' + left + ' move' + (left === 1 ? '' : 's'); }
+      if (e.type === 'mason' || e.type === 'keeper') txt += ' · ' + e.charges + ' charges';
+      if (e.hop) txt += ' · hop ' + e.hop.charges;
+      card.querySelector('.estatus').innerHTML = txt;
+    }
+    // header
+    const par = L.par, stars = P.starsFor(S.moves, par), lim2 = par ? P.twoStarLimit(par) : 0;
+    $('#gStars').innerHTML = [1, 2, 3].map((k) => '<svg class="' + (k <= stars ? 'lit' : '') + '"><use href="#i-star"/></svg>').join('');
+    $('#gParFill').style.width = par ? Math.min(100, (S.moves / lim2) * 100) + '%' : '0';
+    $('#gStarHint').textContent = !par ? '' : S.moves <= par ? (par - S.moves) + ' moves left for ★★★' : S.moves <= lim2 ? (lim2 - S.moves) + ' moves left for ★★' : 'Finish for ★';
+    $('#gMoves').textContent = S.moves;
+    $('#gMovesOf').textContent = L.maxMoves ? ' / ' + L.maxMoves : par ? ' · par ' + par : '';
+    $('.moves').classList.toggle('low', !!L.maxMoves && L.maxMoves - S.moves <= 3);
+    coins();
+    // goals
+    const g = [], req = S.echoes.filter((e) => e.required);
+    const doors = [...new Set(Object.values(L.doors))];
+    doors.forEach((d) => g.push({ done: !!S.open[d], text: 'Open door ' + d + ' (hold plate ' + d.toLowerCase() + ')' }));
+    if (L.exitLock.length) g.push({ done: AM.exitReady(L, S), text: 'Power the portal' });
+    req.forEach((e) => g.push({ done: !e.hopping && AM.isExit(L, e.x, e.y), text: 'Bring ' + ECHO_INFO[e.type].name + ' to the portal' }));
+    g.push({ done: S.status === 'won', text: req.length ? 'Reach the portal together' : 'Reach the portal' });
+    if (L.maxMoves) g.push({ done: false, text: 'Finish within ' + L.maxMoves + ' moves (' + (L.maxMoves - S.moves) + ' left)' });
+    const total = G.startCoins, got = total - S.coins.length;
+    if (total) g.push({ done: got === total, text: 'Coins ' + got + ' / ' + total + ' (optional)' });
+    $('#goals').innerHTML = g.map((q) => '<div class="goal' + (q.done ? ' done' : '') + '"><i>' + (q.done ? '✓' : '') + '</i>' + esc(q.text) + '</div>').join('');
+    // buttons
+    const hasLuck = G.startCoins > 0 || L.luck0 > 0;
+    $('#btnFavour').hidden = !hasLuck || !S.echoes.length;
+    $('#btnFavour').style.setProperty('--p', S.luck);
+    $('#btnFavour').classList.toggle('ready', AM.favourReady(S));
+    $('#btnFavour').title = 'Favour (F) · Luck ' + S.luck + '/100';
+    $('#btnHop').hidden = !S.echoes.some((e) => e.hop);
+    $('#btnHop').classList.toggle('on', G.hop);
+    $('#btnHop').disabled = !hopper() && !G.hop;
+    $('#btnUndo').disabled = !G.undo.length;
+    $('#btnOracle').classList.toggle('on', G.oracle);
+    $('#btnOracle').setAttribute('aria-pressed', G.oracle);
+    const price = P.hintPrice(prog, today());
+    $('#hintLabel').textContent = price ? 'Hint · ' + price : 'Hint · free';
+    // oracle
+    $('#oracleCard').hidden = !G.oracle || S.status !== 'play';
+    if (G.oracle && S.status === 'play') {
+      $('#oracleList').innerHTML = AM.oracle(L, S).map((o) => {
+        if (!o.accepted) return '<div class="no">' + ARROW(o.dir) + '<span>Blocked</span></div>';
+        return '<div class="' + (o.status === 'won' ? 'win' : '') + '">' + ARROW(o.dir) + '<span>' + esc(o.notes.length ? o.notes.join(' ') : 'Nothing else happens.') + '</span></div>';
+      }).join('');
+    }
+    // feed
+    $('#feed').innerHTML = G.log.slice(0, 6).map((l) => '<li class="' + l.c + '">' + esc(l.t) + '</li>').join('');
   }
   function addLog(events) {
     for (const e of events) {
-      const cls = /Blocked|cannot|refused|missed|expires|Out of/i.test(e.text) ? 'bad' : /complete|Luck|holds/i.test(e.text) ? 'good' : '';
-      log.unshift({ t: e.text, c: cls });
+      const t = e.text, c = /Blocked|cannot|refused|missed|Out of|blocked/.test(t) ? 'bad' : /complete|holds|Coin|Fragment/.test(t) ? 'good' : /Favour|moves|builds/.test(t) ? 'gold' : '';
+      G.log.unshift({ t, c });
     }
-    log = log.slice(0, 60);
+    G.log = G.log.slice(0, 30);
   }
 
   /* ---------- commands ---------- */
+  const busy = () => !$('#overlay').hidden || screen !== 'game' || !G;
   function move(dir) {
-    if (S.status !== 'play' || !isOverlayClosed()) return;
-    const r = AM.step(L, S, dir);
-    if (!r.accepted) { addLog(r.events); refresh(); return; }
-    commit(r.state, r.events);
+    if (busy() || G.S.status !== 'play') return;
+    if (G.hop) { G.hop = false; }
+    const r = AM.step(G.L, G.S, dir);
+    if (!r.accepted) { fxBlocked(dir); addLog(r.events); renderPanel(); return; }
+    G.trail = [{ x: G.S.player.x, y: G.S.player.y }].concat(G.trail).slice(0, 3);
+    commit(r.state, r.events, { kind: 'move', dir });
   }
+  function commit(next, events, meta) {
+    const prev = G.S;
+    G.undo.push({ S: prev, trail: G.trail.slice(1) });
+    if (G.undo.length > 400) G.undo.shift();
+    G.S = next; G.hint = null; $('#tip').hidden = true;
+    addLog(events);
+    render();
+    fx(prev, next, events, meta);
+    if (next.status === 'won') setTimeout(victory, reduced() ? 50 : 650);
+    else if (next.status === 'lost') setTimeout(failed, 350);
+    else checkStuck();
+  }
+  function undo() {
+    if (busy() || !G.undo.length) return;
+    const u = G.undo.pop(); G.S = u.S; G.trail = u.trail; G.hint = null; G.hop = false;
+    addLog([{ text: 'Rewound one move.' }]);
+    SFX.undo(); render(); checkStuck();
+  }
+  function restart() { if (G) { SFX.undo(); startLevel(G.idx, { restart: true }); } }
   function favour() {
-    const r = AM.activateFavour(L, S);
-    if (r.ok) commit(r.state, r.events); else { addLog(r.events); refresh(); }
+    if (busy()) return;
+    const r = AM.activateFavour(G.L, G.S);
+    if (!r.ok) { toast(r.events[0].text); SFX.echoBlocked(); return; }
+    SFX.favour(); commit(r.state, r.events, { kind: 'favour' });
+    anim(frame, [{ boxShadow: '0 0 0 3px #ffc24b, 0 0 60px #ffc24b' }, { boxShadow: '0 0 0 3px #2c2266, 0 18px 40px #00000080' }], { duration: 700 });
   }
-  function hopper() { return S.echoes.find((e) => e.hop && !e.hopping && e.hop.charges > 0 && e.state !== 'COOLDOWN'); }
   function toggleHop() {
-    if (S.status !== 'play') return;
-    if (hopMode) { hopMode = false; } else if (hopper()) { hopMode = true; addLog([{ text: 'Hop: click a highlighted tile (range ' + CFG.hopRange + '). Esc cancels.' }]); }
-    else addLog([{ text: 'No echo can hop right now.' }]);
-    refresh();
+    if (busy() || G.S.status !== 'play') return;
+    if (G.hop) G.hop = false;
+    else if (hopper()) { G.hop = true; toast('Tap a glowing tile to hop. Esc cancels.'); }
+    else { toast('No echo can hop right now.'); return; }
+    SFX.click(); render();
   }
-  function undoMove() {
-    if (!undo.length) return;
-    S = undo.pop(); hopMode = false; addLog([{ text: 'Undone.' }]); closeOverlay(); refresh();
+  function tryHop(x, y) {
+    const e = hopper(); if (!e) return;
+    const r = AM.hop(G.L, G.S, e.id, x, y);
+    if (!r.ok) { toast(r.events[0].text); SFX.echoBlocked(); return; }
+    G.hop = false; SFX.hop(); commit(r.state, r.events, { kind: 'hop' });
+  }
+  function toggleOracle() { if (busy()) return; G.oracle = !G.oracle; SFX.click(); renderPanel(); }
+  function hint() {
+    if (busy() || G.S.status !== 'play') return;
+    const price = P.hintPrice(prog, today());
+    if (price > prog.coins) { toast('Hints cost ' + price + ' coins after the free daily one.'); SFX.echoBlocked(); return; }
+    const r = AM.canWin(G.L, G.S, { ms: 900, cap: 300000 });
+    if (r.result === 'unknown') { toast('Too many possibilities to hint from here. Try a few moves first.'); return; }
+    if (r.result === 'stuck') { toast('No solution from this position. Undo first.'); return; }
+    const c = P.chargeHint(prog, today()); persist();
+    G.usedHint = true; G.hint = r.path[0];
+    const a = G.hint;
+    toast((c.free ? 'Free daily hint: ' : 'Hint (−' + c.cost + '): ') + (a.k === 'move' ? 'move ' + a.d + '.' : a.k === 'favour' ? 'activate Favour now.' : 'hop to the glowing tile.'));
+    if (a.k === 'favour') anim($('#btnFavour'), [{ transform: 'scale(1.15)' }, { transform: 'scale(1)' }], { duration: 400, iterations: 3 });
+    SFX.coin(); render();
   }
 
-  /* ---------- finish overlays ---------- */
-  function finish(win) {
-    if (win) {
-      const par = L.par || S.moves, stars = S.moves <= par ? 3 : S.moves <= par + 4 ? 2 : 1;
-      if (!save.best[L.id] || S.moves < save.best[L.id].moves) save.best[L.id] = { moves: S.moves, stars };
-      writeSave(save);
-      const last = idx === LEVELS.length - 1;
-      openOverlay('<h2>Level complete</h2><div class="stars">' + '★'.repeat(stars) + '☆'.repeat(3 - stars) +
-        '</div><p>' + S.moves + ' moves' + (L.par ? ' (par ' + L.par + ')' : '') + '.</p>' +
-        (last ? '<p>You finished every prototype level. Thanks for playing!</p>' : '') +
-        '<div class="row"><button id="o-undo">Undo last move</button><button id="o-retry">Retry</button><button id="o-menu">Levels</button>' +
-        (last ? '' : '<button id="o-next" class="on">Next ▶ (N)</button>') + '</div>');
-      bind('o-next', () => start(idx + 1));
-    } else {
-      openOverlay('<h2>Failed</h2><p>' + S.reason + '</p><div class="row"><button id="o-undo">Undo</button><button id="o-retry" class="on">Retry (R)</button><button id="o-menu">Levels</button></div>');
+  /* ---------- stuck detection (exhaustive search via the engine) ---------- */
+  function checkStuck() {
+    const tok = ++checkToken, snap = G.S;
+    $('#stuck').hidden = true; board.classList.remove('stuck-fx');
+    if (snap.status !== 'play') return;
+    setTimeout(() => {
+      if (tok !== checkToken || !G || G.S !== snap) return;
+      const r = AM.canWin(G.L, snap, { cap: 150000, ms: 200 });
+      if (tok === checkToken && G.S === snap && r.result === 'stuck') {
+        $('#stuck').hidden = false; board.classList.add('stuck-fx'); SFX.lose();
+        addLog([{ text: 'This position can no longer be won.' }]); renderPanel();
+      }
+    }, 30);
+  }
+
+  /* ================= effects ================= */
+  function tileRect(x, y) { const el = tileEls[y] && tileEls[y][x]; return el ? el.getBoundingClientRect() : null; }
+  function fxBlocked(dir) {
+    SFX.blocked(); buzz(35);
+    anim(board, [{ transform: 'translateX(0)' }, { transform: 'translateX(-7px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(0)' }], { duration: 220 });
+    const p = actorEls.get('player'), d = AM.DELTA[dir];
+    if (p) anim(p.firstChild, [{ transform: 'translate(0,0)' }, { transform: 'translate(' + d[0] * 22 + '%,' + d[1] * 22 + '%) scale(.9,1.1)' }, { transform: 'translate(0,0)' }], { duration: 200 });
+    const S = G.S; markX(S.player.x + d[0], S.player.y + d[1]);
+  }
+  function markX(x, y) {
+    if (reduced()) return;
+    const el = document.createElement('div');
+    el.className = 'actor fx-x instant'; el.textContent = '✕';
+    el.style.transform = 'translate(' + x * 100 + '%,' + y * 100 + '%)';
+    actorsEl.appendChild(el);
+    const a = anim(el, [{ opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1.2, offset: 0.3 }, { opacity: 0, scale: 1 }], { duration: 520 });
+    if (a) a.onfinish = () => el.remove(); else el.remove();
+  }
+  function ripple(x, y, color) {
+    if (reduced()) return;
+    const el = document.createElement('div');
+    el.className = 'actor instant';
+    el.style.transform = 'translate(' + x * 100 + '%,' + y * 100 + '%)';
+    el.innerHTML = '<div class="ripple" style="inset:14%;border-color:' + color + '"></div>';
+    actorsEl.appendChild(el);
+    const a = anim(el.firstChild, [{ opacity: 1, transform: 'scale(.6)' }, { opacity: 0, transform: 'scale(2)' }], { duration: 520 });
+    if (a) a.onfinish = () => el.remove(); else el.remove();
+  }
+  function floatText(x, y, text, color) {
+    const r = tileRect(x, y); if (!r || reduced()) return;
+    const el = document.createElement('div');
+    el.className = 'fx-text'; el.textContent = text; el.style.color = color;
+    el.style.left = r.left + r.width / 2 - 20 + 'px'; el.style.top = r.top + 'px';
+    $('#fx').appendChild(el);
+    const a = anim(el, [{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(-44px)', opacity: 0 }], { duration: 900 });
+    if (a) a.onfinish = () => el.remove(); else el.remove();
+  }
+  function flyCoin(x, y, target) {
+    const r = tileRect(x, y), t = target.getBoundingClientRect(); if (!r || reduced()) return;
+    const el = document.createElement('div'); el.className = 'fx-coin';
+    el.style.left = r.left + r.width / 2 - 12 + 'px'; el.style.top = r.top + r.height / 2 - 12 + 'px';
+    $('#fx').appendChild(el);
+    const dx = t.left + t.width / 2 - (r.left + r.width / 2), dy = t.top + t.height / 2 - (r.top + r.height / 2);
+    const a = anim(el, [{ transform: 'translate(0,0) scale(1)' }, { transform: 'translate(' + dx * 0.4 + 'px,' + (dy * 0.4 - 60) + 'px) scale(1.2)', offset: 0.45 }, { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(.6)', opacity: 0.9 }], { duration: 650, easing: 'ease-in' });
+    if (a) a.onfinish = () => { el.remove(); anim(target, [{ transform: 'scale(1.2)' }, { transform: 'scale(1)' }], { duration: 220 }); }; else el.remove();
+  }
+  function fx(prev, next, events, meta) {
+    const fired = new Set(events.filter((e) => e.echo).map((e) => e.echo));
+    if (meta.kind === 'move') {
+      const p = actorEls.get('player');
+      if (p) anim(p.querySelector('.orb'), [{ transform: 'scale(1.2,.82)' }, { transform: 'scale(1)' }], { duration: 180, easing: 'cubic-bezier(.3,1.4,.5,1)' });
+      if (!fired.size) {
+        const maxC = Math.max(0, ...next.echoes.map((e) => e.counter));
+        if (next.echoes.length) SFX.tape(maxC - 1); else SFX.move();
+      }
     }
-    bind('o-undo', undoMove); bind('o-retry', restart); bind('o-menu', menu);
+    for (const e of events) {
+      if (e.type === 'ECHO_MOVED') { const ec = next.echoes.find((q) => q.id === e.echo); ripple(ec.x, ec.y, ECHO_INFO[ec.type].color); SFX.fire(); buzz(15); }
+      if (e.type === 'ECHO_BLOCKED') {
+        SFX.echoBlocked();
+        const el = actorEls.get('echo' + e.echo);
+        if (el) anim(el.querySelector('.shape'), [{ translate: '0 0' }, { translate: '-5px 0' }, { translate: '5px 0' }, { translate: '0 0' }], { duration: 220 });
+      }
+      if (e.type === 'BUILD') { SFX.build(); const b = next.blocks[next.blocks.length - 1]; const el = actorEls.get('temp' + b.x + ',' + b.y); if (el) anim(el.firstChild, [{ transform: 'translateY(-60%) scale(1.1)' }, { transform: 'translateY(0) scale(1)' }], { duration: 260, easing: 'cubic-bezier(.3,1.6,.5,1)' }); }
+      if (e.type === 'HELPER') SFX.tape(4);
+      if (e.type === 'PUSH') SFX.push();
+      if (e.type === 'LUCK') { SFX.coin(); flyCoin(next.player.x, next.player.y, $('#btnFavour').hidden ? $('#coinPill') : $('#btnFavour')); floatText(next.player.x, next.player.y, e.text.match(/\+\d+/)[0] + ' luck', '#ffc24b'); }
+      if (e.type === 'ENEMY') {
+        if (/targeting/.test(e.text)) SFX.alarm();
+        if (/places/.test(e.text)) { SFX.slam(); buzz(40); const b = next.blocks[next.blocks.length - 1]; const el = actorEls.get('corr' + b.x + ',' + b.y); if (el) anim(el.firstChild, [{ transform: 'translateY(-90%)', opacity: 0 }, { transform: 'translateY(6%) scale(1.1,.9)', opacity: 1, offset: 0.7 }, { transform: 'none' }], { duration: 320 }); anim(board, [{ transform: 'translateY(0)' }, { transform: 'translateY(4px)' }, { transform: 'translateY(0)' }], { duration: 180 }); }
+      }
+      if (e.type === 'FAVOUR' && meta.kind === 'move') SFX.echoBlocked();
+    }
+    for (const id of fired) {
+      const card = $('#echoCards .ecard[data-id="' + id + '"]');
+      if (card) card.querySelectorAll('.slot').forEach((s) => { s.classList.remove('flash'); void s.offsetWidth; s.classList.add('flash'); });
+    }
+    for (const l of Object.keys(next.open)) if (next.open[l] !== prev.open[l]) SFX.door(next.open[l]);
+    if (next.status === 'won') {
+      SFX.win(); buzz([20, 40, 60]);
+      const ex = G.L.exit; ripple(ex.x, ex.y, '#6dffb3'); setTimeout(() => ripple(ex.x, ex.y, '#4fe3ff'), 150);
+    }
   }
-  const bind = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
-  function openOverlay(html) { $('card').innerHTML = html; $('overlay').hidden = false; const b = $('card').querySelector('button.on') || $('card').querySelector('button'); if (b) b.focus(); }
-  function closeOverlay() { $('overlay').hidden = true; }
-  const isOverlayClosed = () => $('overlay').hidden;
 
-  function menu() {
-    let h = '<h2>Levels</h2><div class="grid">';
-    LEVELS.forEach((l, i) => {
-      const b = save.best[l.id];
-      h += '<button data-i="' + i + '" class="' + (b ? 'done' : '') + '">' + l.id + '<small>' + l.name + '</small><small>' + (b ? '★'.repeat(b.stars) : '&nbsp;') + '</small></button>';
-    });
-    h += '</div><div class="row"><button id="o-close">Close</button></div>';
-    openOverlay(h);
-    $('card').querySelectorAll('[data-i]').forEach((b) => (b.onclick = () => start(+b.dataset.i)));
-    bind('o-close', closeOverlay);
+  /* ================= modals ================= */
+  function openModal(html, onOpen) {
+    $('#modal').innerHTML = html; $('#overlay').hidden = false;
+    if (onOpen) onOpen();
+    const f = $('#modal').querySelector('.gold') || $('#modal').querySelector('button');
+    if (f) f.focus();
+  }
+  function closeModal() { $('#overlay').hidden = true; $('#modal').innerHTML = ''; $$('.confetti').forEach((c) => c.remove()); }
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = () => { SFX.click(); fn(); }; };
+
+  function victory() {
+    if (!G || G.S.status !== 'won') return;
+    const L = G.L, S = G.S, collected = G.startCoins - S.coins.length;
+    const receipt = P.applyClear(prog, L, { moves: S.moves, collected, usedHint: G.usedHint }, Date.now());
+    persist();
+    const last = G.idx === LEVELS.length - 1;
+    openModal(
+      '<div class="rays"></div><div class="kicker">WORLD 1 · LEVEL ' + L.id + ' · ' + esc(L.name).toUpperCase() + '</div>' +
+      '<h2 class="win-title">' + (last ? 'WORLD CLEAR!' : 'LEVEL CLEAR!') + '</h2>' +
+      '<div class="big-stars">' + [1, 2, 3].map((k) => '<svg class="' + (k <= receipt.stars ? 'lit' : '') + '" style="animation-delay:' + (0.2 + k * 0.18) + 's"><use href="#i-star"/></svg>').join('') + '</div>' +
+      '<div class="stats-row"><span>Moves <b>' + S.moves + '</b>' + (L.par ? ' / par ' + L.par : '') + '</span><span>Best <b>' + receipt.best + '</b>' + (receipt.newBest && !receipt.first ? ' · new best!' : '') + '</span></div>' +
+      '<div class="receipt">' + receipt.lines.map((r, i) => '<div class="r ' + r.tone + '" style="animation-delay:' + (0.5 + i * 0.12) + 's"><span>' + esc(r.label) + '</span><span>+' + r.value + '</span></div>').join('') +
+      '<hr><div class="total"><span class="disp" style="font-size:22px">Total</span><b><i class="coin-ico"></i><span id="countUp">+0</span></b></div></div>' +
+      '<div class="note"><svg><use href="#i-restart"/></svg><span>' + esc(receipt.next) + '</span></div>' +
+      (last ? '<p>You finished every level in World 1. More worlds are on the way.</p>' : '') +
+      '<div class="row"><button class="btn" id="vMap"><svg><use href="#i-map"/></svg>Map</button><button class="btn" id="vReplay"><svg><use href="#i-restart"/></svg>Replay</button>' +
+      (last ? '' : '<button class="btn gold big" id="vNext">Next level<svg><use href="#i-play"/></svg></button>') + '</div>',
+      () => {
+        on('vMap', () => { mapSel = Math.min(G.idx + 1, LEVELS.length - 1); show('map'); });
+        on('vReplay', () => startLevel(G.idx));
+        on('vNext', () => startLevel(G.idx + 1));
+        [1, 2, 3].forEach((k) => { if (k <= receipt.stars) setTimeout(() => SFX.star(k), (reduced() ? 0 : 350 + k * 180)); });
+        countUp($('#countUp'), receipt.total);
+        confetti();
+      });
+  }
+  function countUp(el, total) {
+    if (reduced() || total === 0) { el.textContent = '+' + total; coins(); return; }
+    const t0 = performance.now() + 700, dur = 700;
+    const tick = (t) => {
+      const k = Math.max(0, Math.min(1, (t - t0) / dur));
+      el.textContent = '+' + Math.round(total * k);
+      if (k < 1) requestAnimationFrame(tick); else { coins(); anim($('#coinPill'), [{ transform: 'scale(1.2)' }, { transform: 'scale(1)' }], { duration: 240 }); }
+    };
+    requestAnimationFrame(tick);
+  }
+  function confetti() {
+    if (reduced()) return;
+    const colors = ['#ffc24b', '#4fe3ff', '#ff5c8a', '#6dffb3', '#c49bff'];
+    for (let i = 0; i < 40; i++) {
+      const c = document.createElement('div');
+      c.className = 'confetti'; c.style.left = Math.random() * 100 + 'vw'; c.style.background = colors[i % 5];
+      document.body.appendChild(c);
+      const a = c.animate([{ transform: 'translateY(0) rotate(0)' }, { transform: 'translateY(' + (window.innerHeight + 60) + 'px) rotate(' + (360 + Math.random() * 720) + 'deg)' }], { duration: 2200 + Math.random() * 1800, delay: Math.random() * 600, easing: 'cubic-bezier(.2,.6,.4,1)' });
+      a.onfinish = () => c.remove();
+    }
+  }
+  function failed() {
+    SFX.lose(); buzz([60, 40, 60]);
+    openModal('<div class="kicker">LEVEL ' + G.L.id + '</div><h2 class="lose-title">OUT OF MOVES</h2><p>' + esc(G.S.reason) + ' Undo a few moves or try a new line.</p>' +
+      '<div class="row"><button class="btn" id="fMap"><svg><use href="#i-map"/></svg>Map</button><button class="btn" id="fUndo"><svg><use href="#i-undo"/></svg>Undo</button><button class="btn gold big" id="fRetry"><svg><use href="#i-restart"/></svg>Retry</button></div>',
+      () => { on('fMap', () => show('map')); on('fUndo', () => { closeModal(); undo(); }); on('fRetry', restart); });
+  }
+  function pause() {
+    openModal('<h2>Paused</h2><p>' + esc(G.def.name) + ' · ' + G.S.moves + ' moves so far</p>' +
+      '<div class="row"><button class="btn gold big" id="pResume"><svg><use href="#i-play"/></svg>Resume</button></div>' +
+      '<div class="row"><button class="btn" id="pRestart"><svg><use href="#i-restart"/></svg>Restart</button><button class="btn" id="pMap"><svg><use href="#i-map"/></svg>Level map</button><button class="btn" id="pHelp"><svg><use href="#i-help"/></svg>How to play</button><button class="btn" id="pSound"><svg><use href="#i-sound"/></svg>Sound ' + (prog.sound ? 'on' : 'off') + '</button></div>',
+      () => { on('pResume', closeModal); on('pRestart', restart); on('pMap', () => show('map')); on('pHelp', help); on('pSound', () => { prog.sound = !prog.sound; persist(); applySettings(); pause(); }); });
   }
   function help() {
-    openOverlay(
-      '<h2>How to play</h2>' +
-      '<p>Reach the exit. Every move you make is recorded. Each <b>echo</b> groups your moves into <b>batches</b> and, once a batch fills, copies only its <b>first</b> direction. The other moves in the batch are discarded. Trace has batch size 4, so it acts once per 4 of your moves.</p>' +
-      '<ul><li><b>Escape Together</b>: you and the required echoes must stand on the exit.</li>' +
-      '<li><b>Escape Through the Echo</b>: use echoes as mechanisms (plates hold doors) and walk out.</li>' +
-      '<li>Blocked moves of yours are not recorded. A blocked echo still uses up its batch.</li>' +
-      '<li>Coins fill <b>Luck</b>; at 100 press <kbd>F</kbd> for Favour (smaller batches), followed by a cooldown.</li>' +
-      '<li><b>Oracle</b> (<kbd>O</kbd>) previews the next move in each direction using the real simulation.</li></ul>' +
-      '<p><kbd>←↑↓→</kbd>/<kbd>WASD</kbd> move · <kbd>Z</kbd> undo · <kbd>R</kbd> restart · <kbd>F</kbd> favour · <kbd>H</kbd> hop · <kbd>O</kbd> oracle · <kbd>M</kbd> levels</p>' +
-      '<div class="row"><button id="o-close" class="on">Got it</button></div>');
-    bind('o-close', closeOverlay);
+    const back = screen === 'game' ? '<button class="btn gold big" id="hOk">Back to the level</button>' : '<button class="btn gold big" id="hOk">Got it</button>';
+    openModal('<h2>How to play</h2>' +
+      '<p>Reach the portal. Every move you make is recorded, and each <b style="color:var(--gold)">echo</b> groups your moves into batches. When a batch is full, the echo copies <b>only its first move</b>. The rest are thrown away.</p>' +
+      '<div class="help-demo card"><div class="ecard-top"><div class="glyph trace" style="--g:40px"><span>T</span></div><div><b style="color:var(--gold)">Trace · batch of 4</b><small>You move ↑ → ↓ ←. Trace takes one step ↑.</small></div></div>' +
+      '<div class="tape"><div class="slot filled head">' + ARROW('UP') + '</div><div class="slot filled">' + ARROW('RIGHT') + '</div><div class="slot filled">' + ARROW('DOWN') + '</div><div class="slot filled">' + ARROW('LEFT') + '</div></div></div>' +
+      '<ul class="help-list"><li>Moves into walls are not recorded. A blocked echo still uses up its batch, so walls let it wait.</li>' +
+      '<li>Plates hold doors open while something stands on them. Crates can be pushed but never pulled.</li>' +
+      '<li><b>Escape together</b>: required echoes must also reach the portal.</li>' +
+      '<li>Coins fill Luck. At 100, Favour makes echoes act every 2 moves for a while.</li>' +
+      '<li>Stuck? The game checks every possible line and tells you when a level can no longer be won.</li></ul>' +
+      '<p class="keys"><kbd>←↑↓→</kbd>/<kbd>WASD</kbd> or swipe · <kbd>Z</kbd> undo · <kbd>R</kbd> restart · <kbd>F</kbd> favour · <kbd>H</kbd> hop · <kbd>O</kbd> oracle · <kbd>Esc</kbd> pause</p>' +
+      '<div class="row">' + back + '</div>', () => on('hOk', () => { prog.introDone = true; persist(); closeModal(); }));
+  }
+  function settings(confirmReset) {
+    openModal('<h2>Settings</h2>' +
+      '<div class="setting">Sound effects<button class="toggle" role="switch" id="sSound" aria-checked="' + !!prog.sound + '" aria-label="Sound effects"></button></div>' +
+      '<div class="setting">Reduce motion<button class="toggle" role="switch" id="sMotion" aria-checked="' + !!prog.reduceMotion + '" aria-label="Reduce motion"></button></div>' +
+      '<div class="setting">Progress<button class="btn" id="sReset" style="min-height:42px' + (confirmReset ? ';background:var(--pink);color:#2a0010' : '') + '">' + (confirmReset ? 'Tap again to erase' : 'Reset progress') + '</button></div>' +
+      '<div class="row"><button class="btn gold big" id="sOk">Done</button></div>', () => {
+      on('sSound', () => { prog.sound = !prog.sound; persist(); applySettings(); settings(); });
+      on('sMotion', () => { prog.reduceMotion = !prog.reduceMotion; persist(); applySettings(); settings(); });
+      on('sReset', () => { if (!confirmReset) return settings(true); prog = P.defaults(); prog.introDone = true; persist(); applySettings(); mapSel = null; closeModal(); show('title'); toast('Progress erased.'); });
+      on('sOk', () => { closeModal(); if (screen === 'title') renderTitle(); });
+    });
+  }
+  function toast(msg) {
+    $$('.toast').forEach((t) => t.remove());
+    const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2600);
   }
 
-  /* ---------- rendering ---------- */
-  function resize() {
-    const avail = Math.max(240, $('stage').clientWidth - 18);
-    ts = Math.max(28, Math.min(72, Math.floor(avail / L.w)));
-    const dpr = window.devicePixelRatio || 1, w = ts * L.w, h = ts * L.h;
-    cv.style.width = w + 'px'; cv.style.height = h + 'px';
-    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    draw();
-  }
-
-  const cx = (x) => x * ts + ts / 2;
-  function poly(points) { ctx.beginPath(); points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath(); }
-  function shape(type, x, y, r) {
-    ctx.beginPath();
-    if (type === 'trace') ctx.arc(x, y, r, 0, Math.PI * 2);
-    else if (type === 'flicker') poly([[x, y - r], [x + r, y + r * 0.8], [x - r, y + r * 0.8]]);
-    else if (type === 'mason') ctx.rect(x - r * 0.85, y - r * 0.85, r * 1.7, r * 1.7);
-    else poly(Array.from({ length: 6 }, (_, i) => [x + r * Math.cos(i * Math.PI / 3), y + r * Math.sin(i * Math.PI / 3)]));
-  }
-  function text(t, x, y, size, color, align) {
-    ctx.fillStyle = color; ctx.font = '700 ' + size + 'px system-ui,sans-serif';
-    ctx.textAlign = align || 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, x, y);
-  }
-
-  function draw() {
-    if (!L) return;
-    ctx.clearRect(0, 0, cv.width, cv.height);
-    const hopE = hopMode ? hopper() : null;
-    for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
-      const px = x * ts, py = y * ts;
-      if (L.tiles[y][x] === '#') {
-        ctx.fillStyle = '#252f52'; ctx.fillRect(px, py, ts, ts);
-        ctx.strokeStyle = '#334071'; ctx.lineWidth = 1; ctx.strokeRect(px + 2.5, py + 2.5, ts - 5, ts - 5);
-        continue;
-      }
-      ctx.fillStyle = (x + y) % 2 ? '#10172b' : '#0f1527'; ctx.fillRect(px, py, ts, ts);
-      if (hopE && !AM.hopError(L, S, hopE, x, y)) {
-        ctx.strokeStyle = '#7dffa0'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); ctx.strokeRect(px + 3, py + 3, ts - 6, ts - 6); ctx.setLineDash([]);
-      }
-    }
-    drawExit(); drawPlatesDoors(); drawCoins(); drawBlocks(); drawEnemy();
-    for (const h of S.helpers) { // helper: small diamond
-      ctx.fillStyle = '#8cff9c'; poly([[cx(h.x), cx(h.y) - ts * 0.2], [cx(h.x) + ts * 0.2, cx(h.y)], [cx(h.x), cx(h.y) + ts * 0.2], [cx(h.x) - ts * 0.2, cx(h.y)]]); ctx.fill();
-      text(h.state === 'PERFORM' ? String(h.hold) : String(h.life), cx(h.x), cx(h.y), ts * 0.2, '#0b0f1c');
-    }
-    for (const e of S.echoes) drawEcho(e);
-    drawPlayer();
-  }
-
-  function drawExit() {
-    if (!L.exit) return;
-    const x = cx(L.exit.x), y = cx(L.exit.y), ready = AM.exitReady(L, S), r = ts * 0.36;
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = ready ? '#7dffa0' : '#6b7699';
-    ctx.setLineDash(ready ? [] : [4, 4]);
-    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.rect(x - r + i * r * 0.28, y - r + i * r * 0.28, 2 * (r - i * r * 0.28), 2 * (r - i * r * 0.28)); ctx.stroke(); }
-    ctx.setLineDash([]);
-    if (!ready) { text('✕', x, y, ts * 0.3, '#6b7699'); }
-    else { ctx.shadowColor = '#7dffa0'; ctx.shadowBlur = 14; ctx.stroke(); ctx.shadowBlur = 0; }
-    text('EXIT', x, L.exit.y * ts + ts - 6, Math.max(8, ts * 0.17), ready ? '#7dffa0' : '#6b7699');
-  }
-  function drawPlatesDoors() {
-    for (const k of Object.keys(L.plates)) {
-      const [x, y] = k.split(',').map(Number), letter = L.plates[k], on = S.plateActive[letter];
-      ctx.lineWidth = 3; ctx.strokeStyle = '#5ec8ff'; ctx.fillStyle = on ? '#2a6f95' : '#16213d';
-      ctx.beginPath(); ctx.roundRect(x * ts + ts * 0.16, y * ts + ts * 0.16, ts * 0.68, ts * 0.68, 6); ctx.fill(); ctx.stroke();
-      text(on ? '✓' + letter : letter, cx(x), cx(y), ts * 0.3, '#cfeeff');
-    }
-    for (const k of Object.keys(L.doors)) {
-      const [x, y] = k.split(',').map(Number), letter = L.doors[k], open = S.open[letter], px = x * ts, py = y * ts;
-      if (open) {
-        ctx.strokeStyle = '#5ec8ff'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]); ctx.strokeRect(px + 4, py + 4, ts - 8, ts - 8); ctx.setLineDash([]);
-        text(letter, cx(x), cx(y), ts * 0.28, '#5ec8ff');
-      } else {
-        ctx.fillStyle = '#3a2540'; ctx.fillRect(px + 3, py + 3, ts - 6, ts - 6);
-        ctx.strokeStyle = '#d27bff'; ctx.lineWidth = 3;
-        for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(px + 3, py + (ts * i) / 4); ctx.lineTo(px + ts - 3, py + (ts * i) / 4); ctx.stroke(); }
-        text(letter, cx(x), cx(y), ts * 0.3, '#f1d5ff');
-      }
-    }
-  }
-  function drawCoins() {
-    for (const c of S.coins) {
-      const x = cx(c.x), y = cx(c.y);
-      ctx.fillStyle = c.rare ? '#c49bff' : '#ffd35e';
-      if (c.rare) { poly([[x, y - ts * 0.25], [x + ts * 0.2, y], [x, y + ts * 0.25], [x - ts * 0.2, y]]); ctx.fill(); }
-      else { ctx.beginPath(); ctx.arc(x, y, ts * 0.16, 0, Math.PI * 2); ctx.fill(); text('+', x, y, ts * 0.2, '#6b5200'); }
-    }
-  }
-  function drawBlocks() {
-    for (const b of S.blocks) {
-      const px = b.x * ts, py = b.y * ts, m = ts * 0.12;
-      if (b.kind === 'push') {
-        ctx.fillStyle = '#7a5a34'; ctx.fillRect(px + m, py + m, ts - 2 * m, ts - 2 * m);
-        ctx.strokeStyle = '#d9b27a'; ctx.lineWidth = 2; ctx.strokeRect(px + m, py + m, ts - 2 * m, ts - 2 * m);
-        ctx.beginPath(); ctx.moveTo(px + m, py + m); ctx.lineTo(px + ts - m, py + ts - m); ctx.moveTo(px + ts - m, py + m); ctx.lineTo(px + m, py + ts - m); ctx.stroke();
-      } else {
-        const corr = b.kind === 'corr';
-        ctx.fillStyle = corr ? '#4a1f4f' : '#2d5b7a'; ctx.strokeStyle = corr ? '#ff6bd5' : '#8fd8ff';
-        ctx.lineWidth = 2; ctx.setLineDash(corr ? [] : [3, 3]);
-        ctx.fillRect(px + m, py + m, ts - 2 * m, ts - 2 * m); ctx.strokeRect(px + m, py + m, ts - 2 * m, ts - 2 * m); ctx.setLineDash([]);
-        text((corr ? '✕' : '▤') + b.ttl, cx(b.x), cx(b.y), ts * 0.28, '#fff');
-      }
-    }
-  }
-  function drawEnemy() {
-    const en = S.enemy; if (!en) return;
-    const x = cx(en.x), y = cx(en.y), r = ts * 0.3;
-    ctx.fillStyle = '#3a1020'; ctx.strokeStyle = '#ff6b7a'; ctx.lineWidth = 2.5;
-    poly([[x, y - r], [x + r * 1.1, y], [x, y + r], [x - r * 1.1, y]]); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = en.state === 'TELEGRAPH' ? '#ff6b7a' : '#a04a58'; ctx.beginPath(); ctx.arc(x, y, r * 0.38, 0, Math.PI * 2); ctx.fill();
-    if (en.state === 'TELEGRAPH' && en.target) {
-      const t = en.target;
-      ctx.strokeStyle = '#ff6b7a'; ctx.lineWidth = 3; ctx.setLineDash([6, 4]);
-      ctx.strokeRect(t.x * ts + 4, t.y * ts + 4, ts - 8, ts - 8); ctx.setLineDash([]);
-      text('✕' + en.t, cx(t.x), cx(t.y), ts * 0.32, '#ff6b7a');
-      ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(cx(t.x), cx(t.y)); ctx.stroke(); ctx.globalAlpha = 1;
-    }
-  }
-  function drawEcho(e) {
-    const col = COLORS[e.type], r = ts * 0.3;
-    // ghost at hop origin
-    if (e.hopping && e.hop.origin) {
-      ctx.strokeStyle = col; ctx.globalAlpha = 0.5; ctx.setLineDash([3, 3]); ctx.lineWidth = 2;
-      shape(e.type, cx(e.hop.origin.x), cx(e.hop.origin.y), r); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
-    }
-    const ox = S.echoes.filter((q) => q.x === e.x && q.y === e.y && q.id < e.id).length * (ts * 0.14);
-    const x = cx(e.x) + ox, y = cx(e.y) - ox * 0.5;
-    if (e.state === 'FAVOURED') { ctx.strokeStyle = '#ffd35e'; ctx.lineWidth = 3; shape(e.type, x, y, r + 5); ctx.stroke(); }
-    if (e.state === 'COOLDOWN') { ctx.strokeStyle = '#9aa6c8'; ctx.lineWidth = 2; ctx.setLineDash([2, 3]); shape(e.type, x, y, r + 5); ctx.stroke(); ctx.setLineDash([]); }
-    ctx.fillStyle = '#0b1226'; shape(e.type, x, y, r); ctx.fill();
-    ctx.strokeStyle = col; ctx.lineWidth = e.required ? 4 : 2.5; shape(e.type, x, y, r); ctx.stroke();
-    text(AM.ARCHETYPES[e.type].glyph, x, y + (e.type === 'flicker' ? 3 : 0), ts * 0.28, col);
-    // batch head arrow + progress pips
-    const b = e.counter === 0 ? e.activeB : e.activeB;
-    if (e.batch.length) text(AM.ARROW[e.batch[0]], x, cx(e.y) - ts * 0.43, ts * 0.24, '#fff');
-    const pw = Math.min(ts * 0.12, (ts * 0.7) / b);
-    for (let i = 0; i < b; i++) {
-      ctx.fillStyle = i < e.counter ? col : '#33406a';
-      ctx.fillRect(cx(e.x) - (b * pw) / 2 + i * pw + 1, e.y * ts + ts - 7, pw - 2, 4);
-    }
-  }
-  function drawPlayer() {
-    const x = cx(S.player.x), y = cx(S.player.y);
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, ts * 0.27, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#0b0f1c'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, ts * 0.1, 0, Math.PI * 2); ctx.stroke();
-  }
-
-  /* ---------- side panel ---------- */
-  const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-  /* Exhaustive reachability check (same engine code as the game), run after the board repaints. */
-  let checkToken = 0;
-  function checkStuck() {
-    const tok = ++checkToken, snap = S;
-    $('stuck').hidden = true;
-    if (S.status !== 'play') return;
-    setTimeout(() => {
-      if (tok !== checkToken) return;
-      const r = AM.canWin(L, snap, { cap: 150000, ms: 200 });
-      if (tok === checkToken && r.result === 'stuck' && S === snap) {
-        $('stuck').hidden = false;
-        addLog([{ text: 'This position can no longer be won. Undo or restart.' }]); refresh(true);
-      }
-    }, 0);
-  }
-  function refresh(skipCheck) {
-    $('hudMoves').textContent = S.moves;
-    $('hudLimit').textContent = L.maxMoves ? ' / ' + L.maxMoves : '';
-    $('luckFill').style.width = S.luck + '%'; $('luckNum').textContent = S.luck;
-    const fr = AM.favourReady(S);
-    $('btnFavour').disabled = S.status !== 'play'; $('btnFavour').classList.toggle('ready', fr);
-    $('btnHop').disabled = !S.echoes.some((e) => e.hop) || S.status !== 'play'; $('btnHop').classList.toggle('on', hopMode);
-    $('btnUndo').disabled = !undo.length;
-
-    $('echoes').innerHTML = S.echoes.length ? S.echoes.map((e) => {
-      const a = AM.ARCHETYPES[e.type], col = COLORS[e.type], st = e.hopping ? 'HOPPING' : e.state;
-      const pips = '▮'.repeat(e.counter) + '▯'.repeat(Math.max(0, e.activeB - e.counter));
-      const buf = e.batch.map((d, i) => '<span class="' + (i === 0 ? 'head' : '') + '">' + AM.ARROW[d] + '</span>').join('') || '<span>–</span>';
-      let extra = '';
-      if (e.favour && st === 'FAVOURED') extra += ' · favour ' + e.favour + ' left';
-      if (e.state === 'COOLDOWN') extra += ' · cooldown ' + e.cooldown;
-      if (e.hopping) extra += ' · returns in ' + e.hop.hold;
-      if (a.charges) extra += ' · charges ' + e.charges;
-      if (e.hop) extra += ' · hop ' + e.hop.charges;
-      return '<div class="echo" style="--c:' + col + '" title="' + esc(a.role) + '"><b>' + a.name + '</b> #' + e.id +
-        (e.required ? '<span class="tag">required</span>' : '') +
-        '<div class="pips">' + pips + ' <span class="dim">' + e.counter + '/' + e.activeB + ' (base ' + e.B + ')</span></div>' +
-        '<div class="buf">batch: ' + buf + ' <span class="dim">→ acts on first</span></div>' +
-        '<div class="st-' + st + '">' + st + extra + '</div></div>';
-    }).join('') : '<p class="dim">No echoes in this level.</p>';
-
-    $('log').innerHTML = log.slice(0, 12).map((l) => '<li class="' + l.c + '">' + esc(l.t) + '</li>').join('');
-    $('oracleBox').hidden = !oracleOn;
-    if (oracleOn && S.status === 'play') {
-      $('oracle').innerHTML = AM.oracle(L, S).map((o) => {
-        const lab = AM.ARROW[o.dir] + ' ' + o.dir;
-        if (!o.accepted) return '<div class="no">' + lab + ': blocked</div>';
-        return '<div class="' + (o.status === 'won' ? 'win' : '') + '">' + lab + ': ' + (o.notes.length ? esc(o.notes.join(' ')) : 'nothing happens') + '</div>';
-      }).join('');
-    } else $('oracle').innerHTML = '';
-    draw();
-    if (skipCheck !== true) checkStuck();
-  }
-
-  /* ---------- input ---------- */
-  const KEYS = { ArrowUp: 'UP', ArrowDown: 'DOWN', ArrowLeft: 'LEFT', ArrowRight: 'RIGHT', w: 'UP', s: 'DOWN', a: 'LEFT', d: 'RIGHT', W: 'UP', S: 'DOWN', A: 'LEFT', D: 'RIGHT' };
+  /* ================= input ================= */
+  const KEYS = { ArrowUp: 'UP', ArrowDown: 'DOWN', ArrowLeft: 'LEFT', ArrowRight: 'RIGHT', w: 'UP', s: 'DOWN', a: 'LEFT', d: 'RIGHT' };
   window.addEventListener('keydown', (ev) => {
     if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
-    const k = ev.key;
-    if (!isOverlayClosed()) {
-      if (k === 'Escape') closeOverlay();
-      else if ((k === 'n' || k === 'N' || k === 'Enter') && S.status === 'won' && $('o-next')) start(idx + 1);
-      else if ((k === 'r' || k === 'R') && S.status === 'lost') restart();
+    const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+    if (!$('#overlay').hidden) {
+      if (k === 'Escape') { closeModal(); if (screen === 'game' && G && G.S.status !== 'play') { /* stay on result */ } }
+      else if ((k === 'n' || k === 'Enter') && $('#vNext')) { ev.preventDefault(); startLevel(G.idx + 1); }
+      else if (k === 'r' && G && G.S.status === 'lost') restart();
+      return;
+    }
+    if (screen !== 'game') {
+      if (k === 'Escape' && screen !== 'title') show('title');
       return;
     }
     if (KEYS[k]) { ev.preventDefault(); move(KEYS[k]); }
-    else if (k === 'z' || k === 'Z' || k === 'u' || k === 'U' || k === 'Backspace') { ev.preventDefault(); undoMove(); }
-    else if (k === 'r' || k === 'R') restart();
-    else if (k === 'f' || k === 'F') favour();
-    else if (k === 'h' || k === 'H') toggleHop();
-    else if (k === 'o' || k === 'O') { oracleOn = !oracleOn; $('btnOracle').setAttribute('aria-pressed', oracleOn); refresh(); }
-    else if (k === 'm' || k === 'M') menu();
-    else if (k === 'Escape' && hopMode) { hopMode = false; refresh(); }
+    else if (k === 'z' || k === 'u' || k === 'Backspace') { ev.preventDefault(); undo(); }
+    else if (k === 'r') restart();
+    else if (k === 'f') favour();
+    else if (k === 'h') toggleHop();
+    else if (k === 'o') toggleOracle();
+    else if (k === 'Escape') { if (G.hop) { G.hop = false; render(); } else if (!$('#tip').hidden) $('#tip').hidden = true; else pause(); }
   });
-  document.querySelectorAll('.dpad button').forEach((b) => b.addEventListener('click', () => move(b.dataset.dir)));
-  $('btnUndo').onclick = undoMove; $('btnRestart').onclick = restart; $('btnFavour').onclick = favour; $('btnHop').onclick = toggleHop;
-  $('btnOracle').onclick = () => { oracleOn = !oracleOn; $('btnOracle').setAttribute('aria-pressed', oracleOn); refresh(); };
-  $('stuckUndo').onclick = undoMove; $('stuckRestart').onclick = restart;
-  $('btnMenu').onclick = menu; $('btnHelp').onclick = help;
-  cv.addEventListener('click', (ev) => {
-    if (!hopMode) return;
-    const r = cv.getBoundingClientRect(), x = Math.floor((ev.clientX - r.left) / ts), y = Math.floor((ev.clientY - r.top) / ts);
-    const e = hopper(); if (!e) return;
-    const res = AM.hop(L, S, e.id, x, y);
-    if (res.ok) commit(res.state, res.events); else { addLog(res.events); refresh(); }
+  // swipe + hop taps on the board
+  let swipe = null;
+  board.addEventListener('pointerdown', (e) => { swipe = { x: e.clientX, y: e.clientY }; });
+  board.addEventListener('pointerup', (e) => {
+    if (!swipe) return;
+    const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y; swipe = null;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) > 24) { move(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'RIGHT' : 'LEFT') : (dy > 0 ? 'DOWN' : 'UP')); return; }
+    if (G && G.hop) { const t = e.target.closest('.tile'); if (t) tryHop(+t.dataset.x, +t.dataset.y); }
   });
-  window.addEventListener('resize', () => L && resize());
+  $$('.dpad button').forEach((b) => b.addEventListener('click', () => move(b.dataset.dir)));
+  $('#btnUndo').onclick = undo; $('#btnRestart').onclick = restart; $('#btnFavour').onclick = favour;
+  $('#btnHop').onclick = toggleHop; $('#btnOracle').onclick = toggleOracle; $('#btnHint').onclick = hint;
+  $('#btnPause').onclick = () => { SFX.click(); pause(); };
+  $('#stuckUndo').onclick = undo; $('#stuckRestart').onclick = restart;
+  $('#tContinue').onclick = () => { SFX.click(); startLevel(P.nextLevelIndex(prog, LEVELS)); };
+  $$('[data-go]').forEach((b) => (b.onclick = () => { SFX.click(); if (b.dataset.go === 'map') mapSel = null; show(b.dataset.go); }));
+  $$('[data-open]').forEach((b) => (b.onclick = () => { SFX.click(); b.dataset.open === 'help' ? help() : settings(); }));
+  $('#overlay').addEventListener('click', (e) => { if (e.target === $('#overlay') && G && G.S.status === 'play' && screen === 'game') closeModal(); });
+  let rt = 0;
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (screen === 'game') { fit(); render(true); } }, 80); });
 
-  // first visit: show help once
-  start(0);
-  if (!Object.keys(save.best).length) help();
+  // boot
+  applySettings();
+  show('title');
+  if (!prog.introDone) help();
+  // test hook for automated play-throughs
+  window.__am = { state: () => G && G.S, level: () => G && G.L, start: startLevel, show };
 })();

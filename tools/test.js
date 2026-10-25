@@ -126,5 +126,38 @@ t('Stuck detection: out-of-moves state is stuck', () => {
   const { level: L, state } = AM.loadLevel(LEVELS.find((l) => l.id === 9)); const S = AM.clone(state); S.moves = 13;
   assert.strictEqual(AM.canWin(L, S).result, 'stuck');
 });
+const P = require('../js/progress.js');
+t('Rewards: first clear, star bonus, no-hint bonus and coins', () => {
+  const prog = P.defaults(), lv = { id: 3, par: 12 };
+  const r = P.applyClear(prog, lv, { moves: 12, collected: 2, usedHint: false }, 0);
+  assert.strictEqual(r.stars, 3); assert.ok(r.first);
+  assert.strictEqual(r.total, 32 + 16 + 5 + 10); assert.strictEqual(prog.coins, r.total);
+});
+t('Rewards: replays decay 50/25/12.5%, cap at 3, regenerate after 8h, lifetime cap 10', () => {
+  const prog = P.defaults(), lv = { id: 1, par: 8 }, H = 3600 * 1000;
+  P.applyClear(prog, lv, { moves: 8, collected: 0, usedHint: true }, 0);
+  const pay = (t) => P.applyClear(prog, lv, { moves: 8, collected: 0 }, t).total;
+  assert.deepStrictEqual([pay(1), pay(2), pay(3), pay(4)], [15, 8, 4, 0]);
+  assert.strictEqual(pay(3 + 8 * H), 4); // one step regenerated
+  for (let i = 0; i < 20; i++) pay(100 * H * (i + 1));
+  assert.strictEqual(prog.levels[1].life, 10);
+  assert.strictEqual(pay(1e13), 0);
+});
+t('Rewards: star upgrade on replay pays the difference once; ★1 replays pay nothing', () => {
+  const prog = P.defaults(), lv = { id: 1, par: 8 };
+  P.applyClear(prog, lv, { moves: 20, collected: 0, usedHint: true }, 0);
+  const r = P.applyClear(prog, lv, { moves: 8, collected: 0 }, 1);
+  assert.strictEqual(r.lines[0].value, 10);
+  const low = P.applyClear(prog, lv, { moves: 30, collected: 0 }, 2);
+  assert.strictEqual(low.total, 0);
+});
+t('Hints: one free per day, then cost coins; unlocks are sequential', () => {
+  const prog = P.defaults();
+  assert.ok(P.chargeHint(prog, 'd1').free);
+  assert.ok(!P.chargeHint(prog, 'd1').ok);
+  prog.coins = 40; assert.strictEqual(P.chargeHint(prog, 'd1').cost, 30); assert.strictEqual(prog.coins, 10);
+  assert.ok(P.isUnlocked(prog, LEVELS, 0)); assert.ok(!P.isUnlocked(prog, LEVELS, 1));
+  P.applyClear(prog, LEVELS[0], { moves: 99, collected: 0 }, 0); assert.ok(P.isUnlocked(prog, LEVELS, 1));
+});
 for (const def of LEVELS) t(`Level ${def.id} "${def.name}" is solvable`, () => { const r = solve(def, 1500000); assert.ok(!r.error, r.error); });
 console.log(`\n${pass} passed`);
