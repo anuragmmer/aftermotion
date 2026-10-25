@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aftermotion</title>
+<meta name="description" content="A grid puzzle game where echoes copy only the first move of every batch of your moves.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230e1220'/%3E%3Ccircle cx='11' cy='16' r='5' fill='none' stroke='%235ec8ff' stroke-width='2' stroke-dasharray='3 2'/%3E%3Ccircle cx='21' cy='16' r='6' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="top">
+  <h1>AFTER<span>MOTION</span></h1>
+  <div class="lvl"><span id="lvlName"></span> <small id="lvlMode"></small></div>
+  <nav>
+    <button id="btnMenu" title="Level select (M)">Levels</button>
+    <button id="btnHelp" title="How to play">?</button>
+  </nav>
+</header>
+
+<main class="game">
+  <section class="stageCol">
+    <p id="intro" class="intro"></p>
+    <div id="stage" class="stage"><canvas id="cv" aria-label="Game board"></canvas></div>
+    <div class="hud">
+      <div class="stat">Moves <b id="hudMoves">0</b><span id="hudLimit"></span></div>
+      <div class="stat">Par <b id="hudPar">-</b></div>
+      <div class="luck" title="Collect coins to fill Luck, then activate Favour (F)">
+        <span>Luck</span><div class="bar"><i id="luckFill"></i></div><b id="luckNum">0</b>
+      </div>
+    </div>
+    <div class="controls">
+      <button id="btnUndo" title="Undo (Z)">↶ Undo</button>
+      <button id="btnRestart" title="Restart (R)">⟲ Restart</button>
+      <button id="btnFavour" title="Favour (F)">★ Favour</button>
+      <button id="btnHop" title="Hop (H)">⤴ Hop</button>
+      <button id="btnOracle" title="Oracle preview (O)" aria-pressed="false">◉ Oracle</button>
+    </div>
+    <div class="dpad" aria-label="Touch controls">
+      <button data-dir="UP" aria-label="Up">▲</button>
+      <button data-dir="LEFT" aria-label="Left">◀</button>
+      <button data-dir="DOWN" aria-label="Down">▼</button>
+      <button data-dir="RIGHT" aria-label="Right">▶</button>
+    </div>
+  </section>
+
+  <aside class="side">
+    <h2>Echoes</h2>
+    <div id="echoes"></div>
+    <div id="oracleBox" class="oracle" hidden><h2>Oracle <small>(deterministic, no randomness)</small></h2><div id="oracle"></div></div>
+    <h2>Event log</h2>
+    <ol id="log" class="log" aria-live="polite"></ol>
+  </aside>
+</main>
+
+<div id="overlay" class="overlay" hidden><div class="card" id="card"></div></div>
+
+<script src="js/engine.js"></script>
+<script src="js/levels.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
