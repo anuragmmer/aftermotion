@@ -22,6 +22,10 @@
   <section class="stageCol">
     <p id="intro" class="intro"></p>
     <div id="stage" class="stage"><canvas id="cv" aria-label="Game board"></canvas></div>
+    <div id="stuck" class="stuck" role="alert" hidden>
+      <span><b>No way to win from here.</b> Every possible sequence of moves has been checked.</span>
+      <button id="stuckUndo">↶ Undo</button><button id="stuckRestart" class="on">⟲ Restart</button>
+    </div>
     <div class="hud">
       <div class="stat">Moves <b id="hudMoves">0</b><span id="hudLimit"></span></div>
       <div class="stat">Par <b id="hudPar">-</b></div>

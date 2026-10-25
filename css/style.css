@@ -51,3 +51,6 @@ canvas{display:block;touch-action:manipulation;max-width:100%}
 .stars{color:var(--gold);font-size:24px;letter-spacing:4px}
 @media (max-width:820px){.game{grid-template-columns:1fr}.grid{grid-template-columns:repeat(3,1fr)}}
 @media (prefers-reduced-motion:reduce){button.ready{animation:none}}
+
+.stuck{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 0;padding:10px 12px;border:1px solid var(--bad);border-radius:10px;background:#2a1019}
+.stuck[hidden]{display:none}.stuck span{flex:1;min-width:200px}

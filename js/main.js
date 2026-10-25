@@ -268,7 +268,22 @@
 
   /* ---------- side panel ---------- */
   const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-  function refresh() {
+  /* Exhaustive reachability check (same engine code as the game), run after the board repaints. */
+  let checkToken = 0;
+  function checkStuck() {
+    const tok = ++checkToken, snap = S;
+    $('stuck').hidden = true;
+    if (S.status !== 'play') return;
+    setTimeout(() => {
+      if (tok !== checkToken) return;
+      const r = AM.canWin(L, snap, { cap: 150000, ms: 200 });
+      if (tok === checkToken && r.result === 'stuck' && S === snap) {
+        $('stuck').hidden = false;
+        addLog([{ text: 'This position can no longer be won. Undo or restart.' }]); refresh(true);
+      }
+    }, 0);
+  }
+  function refresh(skipCheck) {
     $('hudMoves').textContent = S.moves;
     $('hudLimit').textContent = L.maxMoves ? ' / ' + L.maxMoves : '';
     $('luckFill').style.width = S.luck + '%'; $('luckNum').textContent = S.luck;
@@ -304,6 +319,7 @@
       }).join('');
     } else $('oracle').innerHTML = '';
     draw();
+    if (skipCheck !== true) checkStuck();
   }
 
   /* ---------- input ---------- */
@@ -329,6 +345,7 @@
   document.querySelectorAll('.dpad button').forEach((b) => b.addEventListener('click', () => move(b.dataset.dir)));
   $('btnUndo').onclick = undoMove; $('btnRestart').onclick = restart; $('btnFavour').onclick = favour; $('btnHop').onclick = toggleHop;
   $('btnOracle').onclick = () => { oracleOn = !oracleOn; $('btnOracle').setAttribute('aria-pressed', oracleOn); refresh(); };
+  $('stuckUndo').onclick = undoMove; $('stuckRestart').onclick = restart;
   $('btnMenu').onclick = menu; $('btnHelp').onclick = help;
   cv.addEventListener('click', (ev) => {
     if (!hopMode) return;

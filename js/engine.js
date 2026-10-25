@@ -421,8 +421,53 @@
     });
   }
 
+
+  /* ---------- reachability: can this state still be won? ---------- */
+  function legalActions(L, S) {
+    const acts = DIR_NAMES.map((d) => ({ k: 'move', d }));
+    if (favourReady(S)) acts.push({ k: 'favour' });
+    for (const e of S.echoes) if (e.hop && !e.hopping && e.hop.charges > 0)
+      for (let dy = -CONFIG.hopRange; dy <= CONFIG.hopRange; dy++) for (let dx = -CONFIG.hopRange; dx <= CONFIG.hopRange; dx++)
+        if (!hopError(L, S, e, e.x + dx, e.y + dy)) acts.push({ k: 'hop', id: e.id, x: e.x + dx, y: e.y + dy });
+    return acts;
+  }
+  function applyAction(L, S, a) {
+    if (a.k === 'move') { const r = step(L, S, a.d); return r.accepted ? r.state : null; }
+    if (a.k === 'favour') return activateFavour(L, S).state;
+    return hop(L, S, a.id, a.x, a.y).state;
+  }
+  function stateSig(L, S) { const c = clone(S); delete c.history; delete c.stats; delete c.tick; if (!L.maxMoves) delete c.moves; return JSON.stringify(c); }
+  /* Exhaustive BFS over the same transition code as the live game.
+     Returns {result:'win'|'stuck'|'unknown', path, states}. 'stuck' is only reported when the
+     whole reachable space was searched; hitting the state/time cap yields 'unknown'. */
+  function canWin(L, S0, opts) {
+    const cap = (opts && opts.cap) || 400000, ms = (opts && opts.ms) || Infinity;
+    const t0 = Date.now();
+    if (S0.status === 'won') return { result: 'win', path: [], states: 0 };
+    if (S0.status === 'lost') return { result: 'stuck', states: 0 };
+    const seen = new Set([stateSig(L, S0)]);
+    let frontier = [{ S: S0, path: [] }], n = 0;
+    while (frontier.length) {
+      const next = [];
+      for (const { S, path } of frontier) for (const a of legalActions(L, S)) {
+        const S2 = applyAction(L, S, a);
+        if (!S2) continue;
+        const p = path.concat([a]);
+        if (S2.status === 'won') return { result: 'win', path: p, states: n };
+        if (S2.status === 'lost') continue;
+        const sg = stateSig(L, S2);
+        if (seen.has(sg)) continue;
+        seen.add(sg);
+        if (++n > cap || (n % 256 === 0 && Date.now() - t0 > ms)) return { result: 'unknown', states: n };
+        next.push({ S: S2, path: p });
+      }
+      frontier = next;
+    }
+    return { result: 'stuck', states: n };
+  }
+
   return {
-    CONFIG, ARCHETYPES, DIR_NAMES, DELTA, ARROW, loadLevel, step, activateFavour, favourReady,
+    legalActions, applyAction, canWin, CONFIG, ARCHETYPES, DIR_NAMES, DELTA, ARROW, loadLevel, step, activateFavour, favourReady,
     hop, hopError, oracle, batchSize, enemyCandidates, isExit, isWall, doorLetter, blockAt, exitReady,
     key, clone, placementError,
   };

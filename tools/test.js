@@ -114,5 +114,17 @@ t('Reset restores initial state', () => {
   const a = AM.loadLevel(LEVELS[2]), b = AM.loadLevel(LEVELS[2]);
   assert.strictEqual(JSON.stringify(a.state), JSON.stringify(b.state));
 });
+t('Stuck detection: jammed push block is reported stuck, fresh level is not', () => {
+  const def = LEVELS.find((l) => l.id === 4); let { level: L, state } = AM.loadLevel(def);
+  assert.strictEqual(AM.canWin(L, state).result, 'win');
+  const jam = run(L, state, ['RIGHT', 'RIGHT']).S; // pushes block against the wall beside the door
+  const S = run(L, jam, ['RIGHT', 'RIGHT']).S;
+  assert.strictEqual(AM.canWin(L, S).result, 'stuck');
+  assert.strictEqual(AM.canWin(L, S, { cap: 3 }).result === 'win', false);
+});
+t('Stuck detection: out-of-moves state is stuck', () => {
+  const { level: L, state } = AM.loadLevel(LEVELS.find((l) => l.id === 9)); const S = AM.clone(state); S.moves = 13;
+  assert.strictEqual(AM.canWin(L, S).result, 'stuck');
+});
 for (const def of LEVELS) t(`Level ${def.id} "${def.name}" is solvable`, () => { const r = solve(def, 1500000); assert.ok(!r.error, r.error); });
 console.log(`\n${pass} passed`);
