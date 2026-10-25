@@ -98,10 +98,18 @@
   </header>
   <div class="game-body">
     <div class="play-col">
+      <div class="coach" id="coach" aria-live="polite">
+        <div class="coach-ico" aria-hidden="true"><svg><use href="#i-bulb"/></svg></div>
+        <div class="coach-body">
+          <b id="coachWhat"></b>
+          <div id="coachNext"></div>
+          <div class="plan-row"><button class="plan-btn" id="planBtn" aria-expanded="false">Show plan</button></div>
+          <p class="plan" id="planText" hidden></p>
+        </div>
+      </div>
       <div class="stage" id="stage">
         <div class="board-frame" id="frame">
           <div class="board" id="board"></div>
-          <div class="tip" id="tip" hidden></div>
           <div class="stuck" id="stuck" role="alert" hidden>
             <b>No way to win from here.</b><span>Every possible line has been checked.</span>
             <div><button class="btn" id="stuckUndo"><svg><use href="#i-undo"/></svg>Undo</button><button class="btn gold" id="stuckRestart"><svg><use href="#i-restart"/></svg>Restart</button></div>
@@ -130,7 +138,7 @@
           <button data-dir="RIGHT" aria-label="Right"><svg style="transform:rotate(90deg)"><use href="#i-arrow"/></svg></button>
         </div>
       </div>
-      <div class="card feed"><h3>Echo feed</h3><ol id="feed" aria-live="polite"></ol></div>
+      <div class="card feed"><h3>What happened</h3><ol id="feed" aria-live="polite"></ol></div>
     </aside>
   </div>
 </section>

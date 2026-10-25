@@ -211,6 +211,31 @@ svg{width:20px;height:20px;flex-shrink:0}
 @keyframes nudge{50%{transform:translateY(-14%)}}
 .hintTile{position:absolute;inset:4%;border-radius:16%;border:3px solid var(--mint);box-shadow:0 0 18px var(--mint);animation:hopGlow 1s infinite}
 
+/* coach */
+.coach{width:100%;max-width:820px;display:flex;gap:14px;align-items:flex-start;background:var(--panel);border-radius:20px;padding:14px 16px;box-shadow:0 0 0 2px var(--line)}
+.coach-ico{width:40px;height:40px;border-radius:12px;background:var(--cyan);color:#062a33;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.coach-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+#coachWhat{font-size:16px;line-height:1.35}
+#coachWhat.bad{color:#ff9fb5}#coachWhat.good{color:var(--mint)}#coachWhat.gold{color:var(--gold)}
+#coachNext{font-size:14.5px;color:#d9d3ff;display:flex;flex-direction:column;gap:4px}
+#coachNext .ln{display:flex;gap:8px;align-items:baseline}
+#coachNext .ln::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--c,var(--cyan));flex-shrink:0;transform:translateY(-1px)}
+.arr{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:22px;padding:0 4px;border-radius:6px;background:var(--panel2);color:var(--ink);font-weight:900;font-size:15px;line-height:1;vertical-align:baseline}
+.arr.h{background:#3a2c12;color:var(--gold);box-shadow:inset 0 0 0 1.5px var(--gold)}
+.plan-row{display:flex}
+.plan-btn{border:0;background:none;color:var(--cyan);font-weight:900;font-size:13px;padding:2px 0;text-decoration:underline;text-underline-offset:3px}
+.plan{margin:0;font-size:14px;color:var(--ink);background:var(--bg);border-radius:12px;padding:10px 12px;line-height:1.45}
+.coach.flash{animation:coachFlash .5s ease-out}
+@keyframes coachFlash{0%{box-shadow:0 0 0 3px var(--cyan)}}
+/* predicted echo landing */
+.pred{z-index:1}
+.pred .po{position:absolute;inset:10%;border-radius:22%;border:3px dashed var(--c,var(--gold));opacity:.9;animation:predPulse 1.2s ease-in-out infinite}
+.pred b{position:absolute;right:4%;top:2%;min-width:calc(var(--ts)*.34);height:calc(var(--ts)*.34);border-radius:999px;background:var(--c,var(--gold));color:#0d0922;font:400 calc(var(--ts)*.24)/calc(var(--ts)*.34) var(--disp);text-align:center;padding:0 3px}
+.pred.blk .po{border-color:var(--pink)}
+.pred.blk b{background:var(--pink);color:#fff}
+.pred.blk i{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:900 calc(var(--ts)*.42) Nunito,sans-serif;color:var(--pink);font-style:normal}
+@keyframes predPulse{50%{opacity:.45}}
+
 /* tip + stuck banners on board */
 .tip{position:absolute;left:12px;right:12px;top:12px;z-index:5;background:#1b1440f2;border-radius:16px;padding:14px 16px;box-shadow:0 0 0 2px var(--cyan),0 12px 30px #0008;display:flex;gap:12px;align-items:flex-start;animation:drop .4s var(--ease-pop)}
 .tip p{margin:2px 0 0;flex:1;font-size:15px}
@@ -335,6 +360,9 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padd
   .modal h2{font-size:34px}
   .menu-grid{grid-template-columns:1fr}
   .feed{display:none}
+  .coach{padding:12px}
+  .coach-ico{display:none}
+  #coachWhat{font-size:15px}
   .game-body{padding:4px 8px 16px;gap:14px}
   .board-frame{padding:6px;border-radius:16px}
   .moves-card{order:-1}

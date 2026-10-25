@@ -154,13 +154,9 @@
     $('#gWorld').textContent = 'WORLD 1 · FIRST LIGHT · LEVEL ' + def.id;
     $('#gName').textContent = def.name;
     buildBoard(); buildCards(); fit();
-    const tip = $('#tip');
-    if (!(opts && opts.restart)) {
-      tip.innerHTML = '<div><b>' + esc(def.name) + '</b><p>' + esc(def.intro) + '</p></div><button id="tipOk">Go!</button>';
-      tip.hidden = false;
-      $('#tipOk').onclick = () => (tip.hidden = true);
-    } else tip.hidden = true;
-    addLog([{ text: 'Level start. Your moves feed every echo\'s batch.' }]);
+    G.planOpen = def.id <= 4;
+    G.coach = { h: esc(def.intro), c: '' };
+    G.log = [{ h: opts && opts.restart ? 'Level restarted.' : 'Level started.', c: '' }];
     render(true);
   }
 
@@ -267,6 +263,16 @@
       head.style.display = e.batch.length && e.type !== 'keeper' ? '' : 'none';
       if (e.batch.length) head.style.transform = 'rotate(' + ROT[e.batch[0]] + 'deg)';
     }
+    for (const e of S.echoes) {
+      if (e.hopping || !e.batch.length || !(walker(e) || e.type === 'mason')) continue;
+      const d = AM.DELTA[e.batch[0]], tx = e.x + d[0], ty = e.y + d[1];
+      if (tx < 0 || ty < 0 || tx >= L.w || ty >= L.h) continue;
+      const blocked = walker(e) ? !!obstacle(L, S, tx, ty) : !!AM.placementError(L, S, tx, ty);
+      const el = actor('pred' + e.id, 'pred' + (blocked ? ' blk' : ''), '<div class="po"></div><i></i><b></b>', tx, ty, seen);
+      el.style.setProperty('--c', ECHO_INFO[e.type].color);
+      el.querySelector('b').textContent = e.activeB - e.counter;
+      el.querySelector('i').textContent = blocked ? '✕' : '';
+    }
     actor('player', 'playerA', '<div class="orb-bob"><div class="orb"></div></div>', S.player.x, S.player.y, seen);
     // hint marker
     if (G.hint) {
@@ -302,15 +308,7 @@
         if (d && slot.dataset.d !== d) { slot.innerHTML = ARROW(d); slot.dataset.d = d; }
         if (!d && slot.dataset.d) { slot.innerHTML = ''; delete slot.dataset.d; }
       });
-      const st = e.hopping ? 'HOPPING' : e.state;
-      let txt = '<span class="' + st + '">' + (st === 'NORMAL' ? '' : st + ' · ') + '</span>';
-      if (e.hopping) txt += 'returns in ' + e.hop.hold;
-      else if (e.state === 'FAVOURED') txt += e.favour + ' moves of favour left · ';
-      else if (e.state === 'COOLDOWN') txt += 'recovers in ' + e.cooldown + ' · ';
-      if (!e.hopping) { const left = size - e.counter; txt += 'acts in ' + left + ' move' + (left === 1 ? '' : 's'); }
-      if (e.type === 'mason' || e.type === 'keeper') txt += ' · ' + e.charges + ' charges';
-      if (e.hop) txt += ' · hop ' + e.hop.charges;
-      card.querySelector('.estatus').innerHTML = txt;
+      card.querySelector('.estatus').innerHTML = cardStatus(e);
     }
     // header
     const par = L.par, stars = P.starsFor(S.moves, par), lim2 = par ? P.twoStarLimit(par) : 0;
@@ -355,15 +353,155 @@
       }).join('');
     }
     // feed
-    $('#feed').innerHTML = G.log.slice(0, 6).map((l) => '<li class="' + l.c + '">' + esc(l.t) + '</li>').join('');
+    $('#feed').innerHTML = G.log.slice(0, 6).map((l) => '<li class="' + l.c + '">' + l.h + '</li>').join('');
+    // coach
+    $('#coachWhat').innerHTML = G.coach.h; $('#coachWhat').className = G.coach.c;
+    $('#coachNext').innerHTML = nextLines(S).map((l) => '<div class="ln" style="--c:' + (l.color || 'var(--cyan)') + '"><span>' + l.h + '</span></div>').join('');
+    $('#planText').textContent = G.def.plan || '';
+    $('#planText').hidden = !G.planOpen;
+    $('#planBtn').textContent = G.planOpen ? 'Hide plan' : 'Show plan';
+    $('#planBtn').setAttribute('aria-expanded', G.planOpen);
   }
-  function addLog(events) {
-    for (const e of events) {
-      const t = e.text, c = /Blocked|cannot|refused|missed|Out of|blocked/.test(t) ? 'bad' : /complete|holds|Coin|Fragment/.test(t) ? 'good' : /Favour|moves|builds/.test(t) ? 'gold' : '';
-      G.log.unshift({ t, c });
+  /* ---------- coach: plain-language explanations of what happened and what comes next ---------- */
+  const AR = { UP: '↑', RIGHT: '→', DOWN: '↓', LEFT: '←' };
+  const WORD = { UP: 'up', RIGHT: 'right', DOWN: 'down', LEFT: 'left' };
+  const arr = (d, head) => '<span class="arr' + (head ? ' h' : '') + '">' + AR[d] + '</span>';
+  const seq = (b) => b.map((d, i) => arr(d, i === 0)).join(' ');
+  const nm = (e) => ECHO_INFO[e.type].name;
+  const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+  const walker = (e) => e.type === 'trace' || e.type === 'flicker';
+  function obstacle(L, S, x, y) {
+    if (AM.isWall(L, x, y)) return 'a wall';
+    const d = AM.doorLetter(L, x, y); if (d && !S.open[d]) return 'closed door ' + d;
+    const b = AM.blockAt(S, x, y);
+    if (b) return b.kind === 'push' ? 'a crate' : b.kind === 'temp' ? 'a built block' : 'a corruption block';
+    return null;
+  }
+  function blockedText(dir, events) {
+    const why = ((events[0] && events[0].text.match(/\((.*)\)/)) || [])[1] || '';
+    const r = why === 'wall' ? 'a wall is in the way'
+      : why === 'closed door' ? 'the door is closed (something has to stand on its plate to open it)'
+      : /pushed/.test(why) ? 'the crate cannot be pushed there, because something is behind it'
+      : 'a block is in the way';
+    return 'You cannot move ' + WORD[dir] + ': ' + r + '. Blocked moves do not count, so your echoes did not see it.';
+  }
+  function explain(prev, next, events, meta) {
+    const out = [], add = (h, c, pri) => out.push({ h, c: c || '', p: pri || 3 });
+    if (meta.kind === 'favour') add('Favour is on! From their next group, echoes use groups of 2 instead of 4, so they act twice as often.', 'gold', 1);
+    for (const ev of events) {
+      const e = ev.echo ? next.echoes.find((q) => q.id === ev.echo) : null;
+      const pe = ev.echo ? prev.echoes.find((q) => q.id === ev.echo) : null;
+      const batch = pe && meta.dir ? pe.batch.concat([meta.dir]) : [], hd = batch[0];
+      switch (ev.type) {
+        case 'ECHO_MOVED':
+          add(nm(e) + ' stepped ' + arr(hd, true) + '. Your last ' + batch.length + ' moves were ' + seq(batch) + ', and ' + nm(e) + ' only copies the first one.', 'gold', 1); break;
+        case 'ECHO_BLOCKED':
+          if (walker(e)) {
+            const r = { wall: 'a wall', 'closed door': 'a closed door', block: 'a block' }[(ev.text.match(/blocked by (.*)\./) || [])[1]] || 'something';
+            add(nm(e) + ' tried to step ' + arr(hd, true) + ' (the first of ' + seq(batch) + '), but ' + r + ' is in the way, so it stayed put. The group is used up anyway.', 'bad', 1);
+          } else if (e.type === 'mason') {
+            add(/no charges/.test(ev.text) ? 'Mason has no blocks left to build.' : 'Mason could not build ' + arr(hd, true) + ': ' + esc((ev.text.match(/\((.*)\)/) || [])[1] || 'that tile is taken') + '. No block was used.', 'bad', 1);
+          } else if (e.type === 'keeper') {
+            add(/already/.test(ev.text) ? 'Keeper skipped this turn: its helper is still out.' : 'Keeper has no helpers left.', '', 1);
+          }
+          break;
+        case 'BUILD': add('Mason built a block ' + arr(hd, true) + ' of itself, because ' + arr(hd, true) + ' was the first of your moves ' + seq(batch) + '. It lasts ' + AM.CONFIG.tempBlockTtl + ' moves.', 'gold', 1); break;
+        case 'NO_TARGET': add('Keeper found no free plate it can reach, so it did nothing this time.', 'bad', 1); break;
+        case 'HELPER':
+          if (/sends/.test(ev.text)) add('Keeper sent a helper to the nearest free plate. The helper walks there on its own and holds the plate for ' + AM.CONFIG.helperHold + ' moves.', 'gold', 1);
+          else if (/reached/.test(ev.text)) add('The helper is standing on the plate, so its door is open for ' + AM.CONFIG.helperHold + ' moves. Go!', 'good', 1);
+          else if (/missed|lost/.test(ev.text)) add('The helper could not reach the plate in time and disappeared.', 'bad', 1);
+          else add('The helper finished and disappeared. The plate is free again.', '', 2);
+          break;
+        case 'LUCK': add('Coin! Luck is now ' + next.luck + '/100.' + (next.luck >= 100 ? ' Luck is full: press Favour (F) to make echoes act twice as often.' : ' At 100 you can use Favour.'), 'good', 2); break;
+        case 'ENEMY':
+          if (/targeting/.test(ev.text)) add('The Blocker marked the red square. In ' + AM.CONFIG.enemyTelegraph + ' moves it drops a block there that lasts ' + AM.CONFIG.corruptionTtl + ' moves.', 'bad', 1);
+          else if (/places/.test(ev.text)) add('The Blocker dropped its block. It fades after ' + AM.CONFIG.corruptionTtl + ' moves.', 'bad', 1);
+          else add('Something was standing on the Blocker\'s target, so it gave up this time.', '', 2);
+          break;
+        case 'EXPIRE': add(/temporary/.test(ev.text) ? 'Mason\'s block faded away.' : 'The corruption block faded away.', '', 2); break;
+        case 'FAVOUR':
+          if (!e) break; // activation itself is described via meta.kind
+          if (/ends/.test(ev.text)) add(nm(e) + '\'s Favour ran out. It is slower for ' + AM.CONFIG.cooldown + ' moves while it cools down.', '', 2);
+          else add(nm(e) + ' is back to its normal speed.', '', 2);
+          break;
+        case 'HOP':
+          if (/hops to/.test(ev.text)) add(nm(e) + ' hopped. It stays there for ' + AM.CONFIG.hopHold + ' moves (holding the plate if it landed on one), then jumps back.', 'good', 1);
+          else if (/returns/.test(ev.text)) add(nm(e) + ' jumped back to where it hopped from.', '', 2);
+          else add(nm(e) + ' could not jump back because something is in the way, so it stays here.', 'bad', 2);
+          break;
+        case 'PUSH': add('You pushed the crate.', '', 8); break;
+        case 'WIN': add('Level complete!', 'good', 0); break;
+        case 'LOSE': add('Out of moves.', 'bad', 0); break;
+      }
     }
+    for (const l of Object.keys(next.open)) {
+      if (next.open[l] === prev.open[l]) continue;
+      if (next.open[l]) add('Door ' + l + ' opened, because something is standing on plate ' + l.toLowerCase() + '.', 'good', 2);
+      else add('Door ' + l + ' closed: nothing is on plate ' + l.toLowerCase() + ' any more.', 'bad', 2);
+    }
+    if (meta.kind === 'move' && !out.some((q) => q.p <= 2)) {
+      const e = next.echoes.find((q) => !q.hopping && (walker(q) || q.type === 'mason'));
+      if (e && e.counter === 1 && e.activeB > 1) add(arr(meta.dir, true) + ' is the first move of ' + nm(e) + '\'s new group, so ' + nm(e) + (e.type === 'mason' ? ' will build in that direction' : ' will step that way') + ' once the group is full.', '', 4);
+      else if (e && e.counter > 1) add('That move filled slot ' + e.counter + ' of ' + e.activeB + ' on ' + nm(e) + '\'s tape. Only slot 1 matters to ' + nm(e) + ', so this move just moved you.', '', 4);
+      else if (!next.echoes.length) add('Nice. Keep heading for the portal.', '', 5);
+    }
+    out.sort((a, b) => a.p - b.p);
+    return out;
+  }
+  function nextLines(S) {
+    const L = G.L, out = [];
+    if (S.status !== 'play') return out;
+    for (const e of S.echoes) {
+      const color = ECHO_INFO[e.type].color, n = nm(e);
+      if (e.hopping) { out.push({ color, h: n + ' jumps back in ' + plural(e.hop.hold, 'move') + '.' }); continue; }
+      const size = e.counter === 0 ? AM.batchSize(e) : e.activeB, left = size - e.counter;
+      if (walker(e)) {
+        if (e.counter === 0) out.push({ color, h: size === 1 ? n + ' copies every move right now.' : 'Your next move starts ' + n + '\'s new group: ' + n + ' will step that way after ' + plural(size, 'move') + ' (watch the tape).' });
+        else {
+          const hd = e.batch[0], d = AM.DELTA[hd], ob = obstacle(L, S, e.x + d[0], e.y + d[1]);
+          out.push({ color, h: n + ' will step ' + arr(hd, true) + ' in ' + plural(left, 'move') + ' (dashed square).' + (ob ? ' Right now ' + ob + ' is there, so it would bump into it and stay put.' : '') + ' Your next ' + plural(left, 'move') + ' won\'t change that.' });
+        }
+      } else if (e.type === 'mason') {
+        if (e.charges <= 0) out.push({ color, h: 'Mason has no blocks left.' });
+        else if (e.counter === 0) out.push({ color, h: 'Your next move picks where Mason builds: it builds a block in that direction after ' + plural(size, 'move') + '.' });
+        else out.push({ color, h: 'Mason will build a block ' + arr(e.batch[0], true) + ' of itself in ' + plural(left, 'move') + ' (dashed square).' });
+      } else if (e.type === 'keeper') {
+        const h = S.helpers.find((q) => q.owner === e.id);
+        if (h) out.push({ color, h: h.state === 'PERFORM' ? 'The helper holds the plate for ' + plural(h.hold, 'more move') + '.' : 'The helper is walking to the plate. It has ' + plural(h.life, 'move') + ' to get there.' });
+        else if (e.charges <= 0) out.push({ color, h: 'Keeper has no helpers left.' });
+        else out.push({ color, h: 'Keeper sends a helper to the nearest free plate in ' + plural(left, 'move') + '. It does not matter which way you move.' });
+      }
+    }
+    const en = S.enemy;
+    if (en && en.state === 'TELEGRAPH') out.push({ color: '#ff5c8a', h: 'Red square: the Blocker drops a block there in ' + plural(en.t, 'move') + '.' });
+    if (AM.favourReady(S)) out.push({ color: '#ffc24b', h: 'Luck is full. Press Favour (F) to make echoes act twice as often.' });
+    if (hopper()) out.push({ color: '#c49bff', h: 'Flicker\'s hop is ready: press H (or the Hop button), then tap a green tile.' });
+    if (!S.echoes.length) {
+      [...new Set(Object.values(L.doors))].forEach((l) => { if (!S.open[l]) out.push({ h: 'Door ' + l + ' is closed. Put something on plate ' + l.toLowerCase() + ' to open it; crates count.' }); });
+      if (!out.length) out.push({ h: 'Head for the spinning portal.' });
+    }
+    if (L.maxMoves && L.maxMoves - S.moves <= 3) out.push({ color: '#ff5c8a', h: 'Only ' + plural(L.maxMoves - S.moves, 'move') + ' left!' });
+    return out;
+  }
+  function cardStatus(e) {
+    if (e.hopping) return '<span class="HOPPING">HOPPING</span> · back in ' + e.hop.hold;
+    const size = e.counter === 0 ? AM.batchSize(e) : e.activeB, left = size - e.counter;
+    let t = e.state === 'FAVOURED' ? '<span class="FAVOURED">FAVOUR · ' + e.favour + ' left</span> · ' : e.state === 'COOLDOWN' ? '<span class="COOLDOWN">COOLING DOWN · ' + e.cooldown + '</span> · ' : '';
+    if (e.type === 'keeper') t += 'helper in ' + plural(left, 'move') + ' · ' + e.charges + ' left';
+    else if (e.counter === 0) t += 'next move = slot 1 (the one that counts)';
+    else t += (e.type === 'mason' ? 'builds ' : 'steps ') + AR[e.batch[0]] + ' in ' + plural(left, 'move');
+    if (e.type === 'mason') t += ' · ' + e.charges + ' blocks';
+    if (e.hop) t += ' · hop ' + (e.hop.charges ? 'ready' : 'used');
+    return t;
+  }
+  function say(lines) {
+    if (!lines.length) return;
+    G.coach = { h: lines[0].h, c: lines[0].c };
+    for (let i = lines.length - 1; i >= 0; i--) G.log.unshift({ h: lines[i].h, c: lines[i].c });
     G.log = G.log.slice(0, 30);
   }
+  function flashCoach() { const c = $('#coach'); c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash'); }
 
   /* ---------- commands ---------- */
   const busy = () => !$('#overlay').hidden || screen !== 'game' || !G;
@@ -371,7 +509,7 @@
     if (busy() || G.S.status !== 'play') return;
     if (G.hop) { G.hop = false; }
     const r = AM.step(G.L, G.S, dir);
-    if (!r.accepted) { fxBlocked(dir); addLog(r.events); renderPanel(); return; }
+    if (!r.accepted) { fxBlocked(dir); say([{ h: blockedText(dir, r.events), c: 'bad' }]); renderPanel(); flashCoach(); return; }
     G.trail = [{ x: G.S.player.x, y: G.S.player.y }].concat(G.trail).slice(0, 3);
     commit(r.state, r.events, { kind: 'move', dir });
   }
@@ -379,8 +517,8 @@
     const prev = G.S;
     G.undo.push({ S: prev, trail: G.trail.slice(1) });
     if (G.undo.length > 400) G.undo.shift();
-    G.S = next; G.hint = null; $('#tip').hidden = true;
-    addLog(events);
+    G.S = next; G.hint = null;
+    say(explain(prev, next, events, meta));
     render();
     fx(prev, next, events, meta);
     if (next.status === 'won') setTimeout(victory, reduced() ? 50 : 650);
@@ -390,7 +528,7 @@
   function undo() {
     if (busy() || !G.undo.length) return;
     const u = G.undo.pop(); G.S = u.S; G.trail = u.trail; G.hint = null; G.hop = false;
-    addLog([{ text: 'Rewound one move.' }]);
+    say([{ h: 'Rewound one move.', c: '' }]);
     SFX.undo(); render(); checkStuck();
   }
   function restart() { if (G) { SFX.undo(); startLevel(G.idx, { restart: true }); } }
@@ -404,8 +542,8 @@
   function toggleHop() {
     if (busy() || G.S.status !== 'play') return;
     if (G.hop) G.hop = false;
-    else if (hopper()) { G.hop = true; toast('Tap a glowing tile to hop. Esc cancels.'); }
-    else { toast('No echo can hop right now.'); return; }
+    else if (hopper()) { G.hop = true; toast('Tap a green tile. Flicker jumps there, stays ' + AM.CONFIG.hopHold + ' moves, then jumps back. Esc cancels.'); }
+    else { toast(G.S.echoes.some((e) => e.hop && e.hop.charges === 0) ? 'Flicker has already used its one hop this level.' : 'Flicker cannot hop right now.'); return; }
     SFX.click(); render();
   }
   function tryHop(x, y) {
@@ -425,7 +563,7 @@
     const c = P.chargeHint(prog, today()); persist();
     G.usedHint = true; G.hint = r.path[0];
     const a = G.hint;
-    toast((c.free ? 'Free daily hint: ' : 'Hint (−' + c.cost + '): ') + (a.k === 'move' ? 'move ' + a.d + '.' : a.k === 'favour' ? 'activate Favour now.' : 'hop to the glowing tile.'));
+    toast((c.free ? 'Free daily hint: ' : 'Hint (−' + c.cost + ' coins): ') + (a.k === 'move' ? 'move ' + WORD[a.d] + ' (green arrow on the board).' : a.k === 'favour' ? 'press Favour now.' : 'hop Flicker onto the green square.'));
     if (a.k === 'favour') anim($('#btnFavour'), [{ transform: 'scale(1.15)' }, { transform: 'scale(1)' }], { duration: 400, iterations: 3 });
     SFX.coin(); render();
   }
@@ -440,7 +578,7 @@
       const r = AM.canWin(G.L, snap, { cap: 150000, ms: 200 });
       if (tok === checkToken && G.S === snap && r.result === 'stuck') {
         $('#stuck').hidden = false; board.classList.add('stuck-fx'); SFX.lose();
-        addLog([{ text: 'This position can no longer be won.' }]); renderPanel();
+        say([{ h: 'This position can no longer be won. Undo a few moves or restart.', c: 'bad' }]); renderPanel();
       }
     }, 30);
   }
@@ -652,7 +790,7 @@
     else if (k === 'f') favour();
     else if (k === 'h') toggleHop();
     else if (k === 'o') toggleOracle();
-    else if (k === 'Escape') { if (G.hop) { G.hop = false; render(); } else if (!$('#tip').hidden) $('#tip').hidden = true; else pause(); }
+    else if (k === 'Escape') { if (G.hop) { G.hop = false; render(); } else pause(); }
   });
   // swipe + hop taps on the board
   let swipe = null;
@@ -667,6 +805,7 @@
   $('#btnUndo').onclick = undo; $('#btnRestart').onclick = restart; $('#btnFavour').onclick = favour;
   $('#btnHop').onclick = toggleHop; $('#btnOracle').onclick = toggleOracle; $('#btnHint').onclick = hint;
   $('#btnPause').onclick = () => { SFX.click(); pause(); };
+  $('#planBtn').onclick = () => { if (G) { G.planOpen = !G.planOpen; SFX.click(); renderPanel(); } };
   $('#stuckUndo').onclick = undo; $('#stuckRestart').onclick = restart;
   $('#tContinue').onclick = () => { SFX.click(); startLevel(P.nextLevelIndex(prog, LEVELS)); };
   $$('[data-go]').forEach((b) => (b.onclick = () => { SFX.click(); if (b.dataset.go === 'map') mapSel = null; show(b.dataset.go); }));

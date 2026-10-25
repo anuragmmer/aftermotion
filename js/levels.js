@@ -10,7 +10,8 @@
   return [
     {
       id: 1, name: 'First Steps', par: 8, mode: 'through',
-      intro: 'Move with the arrow keys or WASD. Reach the glowing exit. R restarts, Z undoes.',
+      intro: 'Move with the arrow keys, WASD, or by swiping. Reach the spinning portal.',
+      plan: 'Follow the corridor right, then down into the portal.',
       map: [
         '#########',
         '#P......#',
@@ -21,7 +22,8 @@
     },
     {
       id: 2, name: 'Echo of the First', par: 8, mode: 'together', required: [1],
-      intro: 'Trace acts once per 4 of your moves, and only copies the FIRST direction of each batch. Bring Trace and yourself to the exit.',
+      intro: 'Meet Trace, your first echo. Trace does not follow you step by step. It collects your moves in groups of 4, then takes ONE step: the direction of the first move in the group.',
+      plan: 'Trace is 2 tiles left of the portal, so it needs to step right twice. Make your 1st and 5th moves right. Your other moves can go anywhere, but finish on the portal yourself.',
       map: [
         '#########',
         '#.......#',
@@ -32,7 +34,8 @@
     },
     {
       id: 3, name: 'Hold the Door', par: 12, mode: 'through',
-      intro: 'A pressure plate is active only while something stands on it. Let Trace hold it while you pass the door. A move into a wall is blocked, so Trace can wait.',
+      intro: 'A door opens while something stands on its plate. You cannot stand on the plate and walk through the door at the same time, so Trace has to hold it for you.',
+      plan: 'Get Trace onto plate a: it needs one step up and one step right, so make those the first moves of two groups. On the plate there is a wall to Trace\'s right, so if every later group starts with a right move, Trace bumps the wall and stays put. Then walk through door A.',
       map: [
         '###########',
         '#....#....#',
@@ -45,7 +48,8 @@
     },
     {
       id: 4, name: 'Weight', par: 10, mode: 'through',
-      intro: 'Push blocks (never pull!). A block on a plate holds the door open. Undo with Z if you jam one.',
+      intro: 'Crates can be pushed but never pulled. A crate on a plate holds its door open.',
+      plan: 'Walk round to the tile above the crate and push it down onto plate a. Do not push it right, or it gets stuck against the wall.',
       map: [
         '###########',
         '#.....#...#',
@@ -55,7 +59,8 @@
     },
     {
       id: 5, name: 'Lucky Streak', par: 10, mode: 'together', required: [1], luck0: 60, maxMoves: 14,
-      intro: 'Collect coins to fill the Luck meter, then press F for Favour: echoes act more often (batch 4 → 2) from their next batch. Cooldown follows.',
+      intro: 'Coins fill your Luck meter. At 100 Luck, press Favour (F): echoes then use groups of 2 instead of 4 for a while, so they move twice as often.',
+      plan: 'Trace needs 4 steps right to reach the portal, and you only have 14 moves. Grab both coins first, press Favour, then make the first move of every group a right move.',
       map: [
         '###########',
         '#T...X....#',
@@ -66,7 +71,8 @@
     },
     {
       id: 6, name: 'Helping Hand', par: 10, mode: 'through', maxMoves: 16,
-      intro: 'Keeper does not walk: every 3 moves it sends a helper to the nearest free plate. The helper holds the plate for a limited time, so be quick.',
+      intro: 'Keeper never walks. Every 3 moves it sends a small helper to the nearest free plate. The helper holds the plate for 6 moves, then disappears.',
+      plan: 'Keeper acts after your 3rd move, and its helper needs 2 more moves to reach plate a. Walk toward door A meanwhile; once the door opens, go straight through to the portal.',
       map: [
         '############',
         '#K.a########',
@@ -77,7 +83,8 @@
     },
     {
       id: 7, name: 'Borrowed Bridge', par: 10, mode: 'through', maxMoves: 14,
-      intro: 'Mason builds a temporary block on the tile its batch head points at. A block on a plate holds the door, until it expires.',
+      intro: 'Mason never walks either. When a group of moves is complete, Mason builds a block on the tile next to it, in the direction of the group\'s first move.',
+      plan: 'Plate a is to the right of Mason, so make your very first move right. Mason builds on the plate after move 4, which opens door A for 8 moves. Be through the door by then.',
       map: [
         '###########',
         '#P...A...X#',
@@ -87,7 +94,8 @@
     },
     {
       id: 8, name: 'Interference', par: 12, mode: 'through', maxMoves: 14,
-      intro: 'The Blocker telegraphs a target tile (red dashes + countdown) then drops a corruption block there. Read it and route around.',
+      intro: 'The Blocker is hostile. It marks a tile with a red square and a countdown, then drops a block there that lasts 6 moves.',
+      plan: 'The red square appears ahead of you on the top corridor. If the block lands in your way, drop down and use the lower corridor.',
       map: [
         '###########',
         '#P........#',
@@ -99,7 +107,8 @@
     },
     {
       id: 9, name: 'Short Hop', par: 6, mode: 'through', maxMoves: 14,
-      intro: 'Press H, then click a tile within 3 steps: Flicker hops there (even over walls), holds it for 4 moves, then returns. One hop per level.',
+      intro: 'Flicker groups moves in 2s. It can also hop: press H, then tap a green tile up to 3 steps away. It sits there for 4 moves (holding a plate if it lands on one), then jumps back. One hop per level.',
+      plan: 'Plate a is walled off, but Flicker can hop onto it. Walk to the tile just left of door A, then hop Flicker onto plate a and walk through the door while it holds.',
       map: [
         '###########',
         '#.F#a######',
@@ -110,7 +119,8 @@
     },
     {
       id: 10, name: 'Together Again', par: 17, mode: 'together', required: [2], maxMoves: 24,
-      intro: 'Everything at once: Trace must reach the exit, but a door blocks its way. Keeper can hold the plate; the Blocker will interfere. Plan the batches.',
+      intro: 'Everything at once: Trace has to reach the portal too, but door A is in its way. Keeper can open that door for you, and the Blocker will try to interfere.',
+      plan: 'Keeper\'s helper holds plate a for 6 moves at a time. Time Trace\'s right steps so it walks through door A while the door is open. A door also stays open while anything stands in its doorway.',
       map: [
         '#############',
         '#K.a#########',
