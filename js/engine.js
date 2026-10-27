@@ -24,7 +24,7 @@
   };
 
   const ARCHETYPES = {
-    trace:   { name: 'Trace',   glyph: 'T', B: 4, role: 'Reliable baseline. Walks its batch-head direction.' },
+    trace:   { name: 'Echo',    glyph: 'E', B: 4, role: 'The basic echo. Walks its batch-head direction.' },
     flicker: { name: 'Flicker', glyph: 'F', B: 2, role: 'Fast cadence. Can hop (H) to a nearby tile.', hop: true },
     mason:   { name: 'Mason',   glyph: 'M', B: 4, role: 'Builds a temporary block on the tile its batch head points at.', charges: 3 },
     keeper:  { name: 'Keeper',  glyph: 'K', B: 3, role: 'Sends a helper to hold the nearest free plate.', charges: 3 },
@@ -218,7 +218,7 @@
       ev.push({ type: 'HELPER', echo: e.id, text: 'Keeper sends a helper to the plate at (' + best.x + ',' + best.y + ').' });
       return;
     }
-    // Trace / Flicker: move; a blocked move still consumes the batch.
+    // Echo / Flicker: move; a blocked move still consumes the batch.
     let reason = null;
     if (isWall(L, tx, ty)) reason = 'wall';
     else if (doorClosed(L, S, tx, ty)) reason = 'closed door';

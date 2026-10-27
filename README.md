@@ -7,7 +7,9 @@ A grid puzzle game built from `Aftermotion_Mechanics_Specification_v0.1.md`. Sta
 ## Play
 Open `index.html`, or enable **Settings → Pages → Deploy from a branch** (root) or **GitHub Actions** (a workflow is included). Controls: arrows/WASD or swipe to move, `Z` undo, `R` restart, `F` favour, `H` hop (then tap a glowing tile), `O` oracle, `Esc` pause.
 
-Screens: title, a 6-world map (60 levels, sequential unlock, stars), gameplay with animated batch tapes, echo collection, level-clear rewards. Coins come from first clears and decaying replays (50% → 25% → 12.5%, 3 paid replays, recharge one step per 8 h, 10 lifetime) and pay for solver hints (one free per day). Progress is saved in the browser. Sound is synthesized with WebAudio; reduced motion is respected.
+Screens: title, a 6-world map (60 levels, sequential unlock, stars), gameplay with animated batch tapes, echo collection, level-clear rewards. Coins come from first clears and decaying replays (50% → 25% → 12.5%, 3 paid replays, recharge one step per 8 h, 10 lifetime) and pay for solver hints (one free per day). Progress is saved in the browser. A **Daily Echo** (one of your cleared levels, ×2 coins at par, streak bonus) and **star chests** (one every 10 stars) give reasons to come back. Each world has its own colour theme; boss levels (every 10th) pulse through nearby hues, and every 5th level has a reactive floor that ripples with your moves.
+
+Naming: the basic echo is called **Echo**; Flicker, Mason and Keeper are other kinds of echo. An echo's **trace** is the dotted line and dashed square showing the step it will take next. Sound is synthesized with WebAudio; reduced motion is respected.
 
 ## Design docs
 - `Aftermotion_Mechanics_Specification_v0.1.md`: original mechanics spec (what the prototype implements).

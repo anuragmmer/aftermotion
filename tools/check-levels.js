@@ -18,7 +18,7 @@ function strip(def, chars) {
 // An echo of this type stays on the board (same ids, same tile) but never acts.
 function freeze(def, type) {
   const o = Object.assign({}, def.overrides || {});
-  AM.loadLevel(def).state.echoes.forEach((e) => { if (e.type === type) o[e.id] = Object.assign({}, o[e.id], { inert: true }); });
+  AM.loadLevel(def).state.echoes.forEach((e) => { if (e.type === type) o[e.id] = Object.assign({}, o[e.id], { inert: true }, e.hop ? { hop: { origin: null, hold: 0, charges: 0 } } : {}); });
   return Object.assign({}, def, { overrides: o });
 }
 function hopOff(def) {

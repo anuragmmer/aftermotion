@@ -12,10 +12,10 @@
   const today = () => new Date().toISOString().slice(0, 10);
 
   const ECHO_INFO = {
-    trace: { name: 'Trace', glyph: 'T', color: '#ffc24b', b: 4, sel: 'First move', verb: 'Walk', role: 'Copies the first move of every 4.', tips: ['Plan the first move of each batch; the other three are free.', 'A blocked attempt still uses up the batch, so walls let Trace wait.'] },
-    flicker: { name: 'Flicker', glyph: 'F', color: '#c49bff', b: 2, sel: 'First move', verb: 'Walk + Hop', role: 'Copies the first move of every 2. Can hop.', tips: ['Twice as responsive as Trace, so it drifts quickly.', 'Press H and tap a glowing tile: Flicker hops there (even over walls), holds it for 4 moves, then returns.'] },
-    mason: { name: 'Mason', glyph: 'M', color: '#ff9a5e', b: 4, sel: 'First move', verb: 'Build', role: 'Builds a temporary block where its batch head points.', tips: ['Mason never walks. Aim the first move of a batch at the tile you want built.', 'A block on a plate holds its door until the block expires.'] },
-    keeper: { name: 'Keeper', glyph: 'K', color: '#6dffb3', b: 3, sel: 'Any', verb: 'Send helper', role: 'Every 3 moves, sends a helper to the nearest free plate.', tips: ['Helpers walk on their own and hold a plate for 6 moves.', 'If a helper cannot arrive in time, it fades away.'] },
+    trace: { name: 'Echo', glyph: 'E', color: '#ffc24b', b: 4, sel: 'First move', verb: 'Walk', role: 'The basic echo. Copies the first move of every 4.', tips: ['Plan the first move of each group of 4; the other three are free.', 'Its trace (the dotted line and dashed square) shows exactly where it will step next.', 'A blocked step still uses up the group, so walls let Echo wait.'] },
+    flicker: { name: 'Flicker', glyph: 'F', color: '#c49bff', b: 2, sel: 'First move', verb: 'Walk + Hop', role: 'A fast echo. Copies the first move of every 2, and can hop.', tips: ['Twice as responsive as Echo, so it drifts quickly.', 'Press H and tap a glowing tile: Flicker hops there (even over walls), holds it for 4 moves, then returns.'] },
+    mason: { name: 'Mason', glyph: 'M', color: '#ff9a5e', b: 4, sel: 'First move', verb: 'Build', role: 'A builder echo. Builds a block where the group\'s first move points.', tips: ['Mason never walks. Aim the first move of a batch at the tile you want built.', 'A block on a plate holds its door until the block expires.'] },
+    keeper: { name: 'Keeper', glyph: 'K', color: '#6dffb3', b: 3, sel: 'Any', verb: 'Send helper', role: 'A helper echo. Every 3 moves, sends a helper to the nearest free plate.', tips: ['Helpers walk on their own and hold a plate for 6 moves.', 'If a helper cannot arrive in time, it fades away.'] },
     blocker: { name: 'Blocker', glyph: '!', color: '#ff5c8a', b: 0, sel: '—', verb: 'Corrupt', role: 'Hostile. Telegraphs a tile, then drops a corruption block on it.', tips: ['The red reticle shows where and when it strikes.', 'Corruption fades after 6 moves.'], hostile: true },
   };
   const firstLevelWith = (key) => {
@@ -37,8 +37,15 @@
   function applySettings() { SFX.setEnabled(!!prog.sound); document.body.classList.toggle('reduce', !!prog.reduceMotion); }
 
   /* ================= screens ================= */
+  function setTheme(theme, boss) {
+    document.body.dataset.theme = theme || '';
+    document.body.classList.toggle('boss', !!boss);
+    if (!boss) ['danger', 'favoured', 'hopmode', 'won'].forEach((c) => document.body.classList.remove(c));
+  }
   function show(name) {
     screen = name;
+    if (name === 'title' || name === 'echoes') setTheme('');
+    if (name === 'map') setTheme('w' + (mapWorld || LEVELS[P.nextLevelIndex(prog, LEVELS)].world));
     $$('.screen').forEach((s) => (s.hidden = s.id !== name));
     closeModal();
     coins();
@@ -56,6 +63,32 @@
     $('#tStars').textContent = P.totalStars(prog) + ' / ' + LEVELS.length * 3 + '★';
     const seen = Object.keys(ECHO_INFO).filter((k) => prog.seen[k]).length;
     $('#tEchoes').textContent = seen + ' / ' + Object.keys(ECHO_INFO).length;
+    const day = today(), ds = P.dailyStatus(prog, day), di = P.dailyLevelIndex(prog, LEVELS, day);
+    const dc = $('#tDaily');
+    dc.classList.toggle('ready', di >= 0 && !ds.done); dc.classList.toggle('done', ds.done);
+    $('#tDailySub').textContent = di < 0 ? 'Clear level 1 to unlock' : ds.done ? 'Done for today. Back tomorrow!' : 'Today: ' + LEVELS[di].name + ' · reach par for ×2';
+    $('#tStreak').innerHTML = ds.streak ? '<svg style="color:var(--gold)"><use href="#i-flame"/></svg>' + ds.streak : '';
+    const ch = P.chestsAvailable(prog), stars = P.totalStars(prog), nextAt = P.nextChestAt(prog);
+    $('#tChest').classList.toggle('ready', ch > 0);
+    $('#tChestTitle').textContent = ch > 0 ? (ch > 1 ? ch + ' chests ready!' : 'Chest ready!') : 'Star chest';
+    $('#tChestSub').textContent = ch > 0 ? 'Tap to open' : stars + ' / ' + nextAt + '★ for the next chest';
+    $('#tChestFill').style.width = ch > 0 ? '100%' : Math.round(((stars - (nextAt - P.CHEST_STARS)) / P.CHEST_STARS) * 100) + '%';
+  }
+  function playDaily() {
+    const day = today(), di = P.dailyLevelIndex(prog, LEVELS, day), ds = P.dailyStatus(prog, day);
+    if (di < 0) { toast('Clear level 1 first: the Daily Echo picks from levels you have beaten.'); return; }
+    if (ds.done) { toast('You already played today\'s Daily Echo. Streak: ' + ds.streak + '. Come back tomorrow!'); return; }
+    SFX.click(); startLevel(di, { daily: true });
+  }
+  function openChestModal() {
+    if (!P.chestsAvailable(prog)) { toast('Earn ' + (P.nextChestAt(prog) - P.totalStars(prog)) + ' more stars to fill the next chest.'); return; }
+    const coins = P.openChest(prog); persist(); SFX.win(); buzz([30, 30, 60]);
+    openModal('<div class="kicker">STAR CHEST</div><div class="chest-big"><svg><use href="#i-chest"/></svg></div><h2 class="win-title">+' + coins + ' coins</h2>' +
+      '<p>A chest every ' + P.CHEST_STARS + ' stars. Next at ' + P.nextChestAt(prog) + '★.</p><div class="row"><button class="btn gold big" id="chOk">Nice!</button></div>', () => {
+      confetti();
+      on('chOk', () => { closeModal(); renderTitle(); });
+    });
+    coins();
   }
 
   /* ---------- map ---------- */
@@ -72,9 +105,10 @@
   }
   function levelChips(def) {
     const s = def.map.join(''), out = [];
-    if (s.includes('T')) out.push('Trace'); if (s.includes('F')) out.push('Flicker'); if (s.includes('M')) out.push('Mason'); if (s.includes('K')) out.push('Keeper');
+    if (s.includes('T')) out.push('Echo'); if (s.includes('F')) out.push('Flicker'); if (s.includes('M')) out.push('Mason'); if (s.includes('K')) out.push('Keeper');
     if (/[a-d]/.test(s)) out.push('Plate + door'); if (s.includes('o')) out.push('Crate'); if (s.includes('c')) out.push('Coins'); if (s.includes('Z')) out.push('Blocker');
     if (def.exitLock) out.push('Powered portal');
+    if (def.id % 10 === 0) out.push('Boss level'); else if (def.id % 5 === 0) out.push('Reactive floor');
     if (def.maxMoves) out.push(def.maxMoves + ' move limit');
     out.push(def.mode === 'together' ? 'Escape together' : 'Escape through');
     return out;
@@ -89,6 +123,7 @@
     $('#mapKicker').textContent = 'WORLD ' + W.id + ' OF ' + WORLDS.length + ' · LEVELS ' + items[0].l.id + '–' + items[items.length - 1].l.id;
     $('#mapName').textContent = W.name;
     $('#mapBlurb').textContent = W.blurb + ' ' + items.filter((o) => cleared(o.l)).length + ' / ' + items.length + ' cleared.';
+    setTheme('w' + mapWorld);
     $('#mapPrev').disabled = mapWorld === 1; $('#mapNext').disabled = mapWorld === WORLDS.length;
     const pts = mapPoints(items.length + 1);
     const toPct = (p) => ({ left: p.x / 10 + '%', top: (p.y / 620) * 100 + '%' });
@@ -171,15 +206,17 @@
   /* ================= game ================= */
   function startLevel(i, opts) {
     const def = LEVELS[i], r = AM.loadLevel(def);
-    G = { idx: i, def, L: r.level, S: r.state, undo: [], log: [], hop: false, oracle: G ? G.oracle : false, usedHint: false, hint: null, trail: [], startCoins: r.state.coins.length };
+    const daily = !!(opts && opts.daily) || !!(opts && opts.restart && G && G.daily);
+    G = { daily, react: def.id % 5 === 0, idx: i, def, L: r.level, S: r.state, undo: [], log: [], hop: false, oracle: G ? G.oracle : false, usedHint: false, hint: null, trail: [], startCoins: r.state.coins.length };
     r.state.echoes.forEach((e) => (prog.seen[e.type] = true));
     if (r.state.enemy) prog.seen.blocker = true;
     persist();
     show('game');
-    $('#gWorld').textContent = 'WORLD ' + def.world + ' · ' + WORLDS[def.world - 1].name.toUpperCase() + ' · LEVEL ' + def.id;
-    $('#gName').textContent = def.name;
+    $('#gWorld').textContent = daily ? 'DAILY ECHO · ' + today() : 'WORLD ' + def.world + ' · ' + WORLDS[def.world - 1].name.toUpperCase() + ' · LEVEL ' + def.id;
+    $('#gName').innerHTML = esc(def.name) + '<span class="boss-tag">BOSS</span><span class="daily-tag">DAILY</span>';
+    setTheme(daily ? 'daily' : 'w' + def.world, !daily && def.id % 10 === 0);
     buildBoard(); buildCards(); fit(true);
-    const fresh = !cleared(def) && !(opts && opts.restart);
+    const fresh = !cleared(def) && !(opts && opts.restart) && !daily;
     G.tut = TUTORIALS[def.id] && !cleared(def) ? { steps: TUTORIALS[def.id], i: 0 } : null;
     G.coach = { h: '<span class="lesson-inline">Lesson: ' + esc(def.lesson) + '</span> ' + esc(def.intro), c: '' };
     G.log = [{ h: opts && opts.restart ? 'Level restarted.' : 'Level started.', c: '' }];
@@ -209,17 +246,17 @@
       { say: 'Every level ends at the spinning portal. Follow the corridor to reach it.', end: true },
     ],
     2: [
-      { say: 'This gold ring is <b>Trace</b>, an echo. It repeats some of your moves, but not all of them.', spot: 'echo:1', ack: true },
-      { say: 'Every move you make goes onto Trace\'s tape (the 4 slots in the panel). Slot 1 is the one that counts.', spot: 'tape:1', ack: true },
+      { say: 'This gold ring is <b>Echo</b>, your first echo. It repeats some of your moves, but not all of them.', spot: 'echo:1', ack: true },
+      { say: 'Every move you make goes onto Echo\'s tape (the 4 slots in the panel). Slot 1 is the one that counts.', spot: 'tape:1', ack: true },
       { say: 'Press ' + arrHtml('RIGHT') + ' (right) once.', expect: 'RIGHT', spot: 'tape:1' },
-      { say: 'Your ' + arrHtml('RIGHT') + ' landed in slot 1, marked <b>COPIED</b>. The dashed square on the board shows where Trace will step.', spot: 'pred:1', ack: true },
-      { say: 'Now make any 3 moves. They fill slots 2 to 4, and Trace ignores them. Watch Trace on your 4th move.', expect: 'fire', spot: 'tape:1' },
-      { say: 'Trace stepped ' + arrHtml('RIGHT') + ' because that was the first of your 4 moves. The tape is empty again, so your next move is the new slot 1.', spot: 'echo:1', ack: true },
-      { say: 'Trace needs one more step right to reach the portal. Start the next group with ' + arrHtml('RIGHT') + ', then walk onto the portal yourself.', end: true },
+      { say: 'Your ' + arrHtml('RIGHT') + ' landed in slot 1, marked <b>COPIED</b>. The dotted line and dashed square on the board are its <b>trace</b>: the step it will take when the tape is full.', spot: 'pred:1', ack: true },
+      { say: 'Now make any 3 moves. They fill slots 2 to 4, and Echo ignores them. Watch it on your 4th move.', expect: 'fire', spot: 'tape:1' },
+      { say: 'Echo stepped ' + arrHtml('RIGHT') + ', along its trace, because that was the first of your 4 moves. The tape is empty again, so your next move is the new slot 1.', spot: 'echo:1', ack: true },
+      { say: 'Echo needs one more step right to reach the portal. Start the next group with ' + arrHtml('RIGHT') + ', then walk onto the portal yourself.', end: true },
     ],
     3: [
       { say: 'Plates and doors come in matching colours. Plate <b>a</b> opens door <b>A</b>, but only while something stands on the plate.', spot: 'plate:A', ack: true },
-      { say: 'You cannot stand on the plate and walk through the door at the same time, so Trace has to hold the plate. Tap Plan if you get stuck.', spot: 'door:A', end: true },
+      { say: 'You cannot stand on the plate and walk through the door at the same time, so Echo has to hold the plate. Tap Plan if you get stuck.', spot: 'door:A', end: true },
     ],
     4: [
       { say: 'This is a crate. Walk into it to push it. You can never pull it back, so think before you push.', spot: 'crate', ack: true },
@@ -264,11 +301,14 @@
   function buildBoard() {
     const L = G.L;
     board.innerHTML = ''; tileEls = []; actorEls = new Map();
-    board.style.setProperty('--w', L.w);
+    const ring = L.tiles[0].split('').every((c) => c === '#') && L.tiles[L.h - 1].split('').every((c) => c === '#') && L.tiles.every((r) => r[0] === '#' && r[L.w - 1] === '#');
+    G.ox = ring ? 1 : 0;
+    board.style.setProperty('--w', L.w - 2 * G.ox);
     board.classList.remove('stuck-fx'); $('#stuck').hidden = true;
     for (let y = 0; y < L.h; y++) {
       const row = [];
       for (let x = 0; x < L.w; x++) {
+        if (G.ox && (x === 0 || y === 0 || x === L.w - 1 || y === L.h - 1)) { row.push(null); continue; }
         const el = document.createElement('div'), k = AM.key(x, y);
         el.dataset.x = x; el.dataset.y = y;
         let cls = 'tile ' + (L.tiles[y][x] === '#' ? 'wall' : 'floor' + ((x + y) % 2 ? ' alt' : ''));
@@ -291,18 +331,20 @@
   function fit(force) {
     if (!G) return false;
     const L = G.L, narrow = window.innerWidth <= 980;
-    const availW = $('#stage').clientWidth - (narrow ? 14 : 24);
+    const cols = L.w - 2 * G.ox, rows = L.h - 2 * G.ox;
+    const availW = $('#stage').clientWidth - (narrow ? 10 : 20);
     const screenH = Math.max(window.screen && window.screen.height ? window.screen.height : 0, 480);
-    const availH = narrow ? Math.round(screenH * 0.48) : window.innerHeight - 250;
+    const availH = narrow ? Math.round(screenH * 0.56) : window.innerHeight - 170;
     const key = L.id + ':' + availW + ':' + availH;
     if (!force && key === fitKey) return false;
     fitKey = key;
-    const ts = Math.max(24, Math.floor(Math.min(availW / L.w, availH / L.h, 66)));
+    const ts = Math.max(26, Math.floor(Math.min(availW / cols, availH / rows, narrow ? 72 : 96)));
     board.style.setProperty('--ts', ts + 'px');
     return true;
   }
 
   /* ---------- keyed actor sync ---------- */
+  const tr = (x, y) => 'translate(' + (x - G.ox) * 100 + '%,' + (y - G.ox) * 100 + '%)';
   function actor(key, cls, html, x, y, seen) {
     seen.add(key);
     let el = actorEls.get(key);
@@ -310,14 +352,14 @@
       el = document.createElement('div');
       el.className = 'actor instant ' + cls; el.innerHTML = html;
       actorsEl.appendChild(el); actorEls.set(key, el);
-      el.style.transform = 'translate(' + x * 100 + '%,' + y * 100 + '%)';
+      el.style.transform = tr(x, y);
       requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('instant')));
       anim(el, [{ opacity: 0, transform: el.style.transform + ' scale(.4)' }, { opacity: 1, transform: el.style.transform }], { duration: 220, easing: 'cubic-bezier(.3,1.4,.5,1)' });
       el._new = true;
     } else {
       el._new = false;
       el.className = 'actor ' + cls + (el.classList.contains('instant') ? ' instant' : '');
-      el.style.transform = 'translate(' + x * 100 + '%,' + y * 100 + '%)';
+      el.style.transform = tr(x, y);
     }
     return el;
   }
@@ -337,6 +379,7 @@
     const ready = AM.exitReady(L, S), hopE = G.hop ? hopper() : null;
     for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
       const el = tileEls[y][x], k = AM.key(x, y);
+      if (!el) continue;
       if (L.plates[k]) el.classList.toggle('on', !!S.plateActive[L.plates[k]]);
       if (L.doors[k]) el.classList.toggle('open', !!S.open[L.doors[k]]);
       if (AM.isExit(L, x, y)) el.classList.toggle('locked', !ready);
@@ -360,9 +403,9 @@
     for (const h of S.helpers) actor('helper' + h.id, 'helper', '<div class="dia"></div><b></b>', h.x, h.y, seen).querySelector('b').textContent = h.state === 'PERFORM' ? h.hold : h.life;
     G.trail.forEach((p, i) => { const el = actor('trail' + i, 'trail', '<div class="dot"></div>', p.x, p.y, seen); el.style.opacity = 0.32 - i * 0.1; el.firstChild.style.transform = 'scale(' + (1 - i * 0.22) + ')'; });
     for (const e of S.echoes) {
-      if (e.hopping && e.hop.origin) actor('ghost' + e.id, 'echo ghost-origin ' + e.type, '<div class="shape"><span>' + ECHO_INFO[e.type].glyph + '</span></div>', e.hop.origin.x, e.hop.origin.y, seen);
+      if (e.hopping && e.hop.origin) actor('ghost' + e.id, 'echo ghost-origin ' + e.type, '<div class="shape"><span>' + glyphOf(e) + '</span></div>', e.hop.origin.x, e.hop.origin.y, seen);
       const el = actor('echo' + e.id, 'echo ' + e.type + (e.required ? ' required' : '') + (e.state === 'FAVOURED' ? ' fav' : '') + (e.state === 'COOLDOWN' ? ' cool' : ''),
-        '<div class="shape"><span>' + ECHO_INFO[e.type].glyph + '</span></div><div class="pips"></div><svg class="head"><use href="#i-arrow"/></svg>', e.x, e.y, seen);
+        '<div class="shape"><span>' + glyphOf(e) + '</span></div><div class="pips"></div><svg class="head"><use href="#i-arrow"/></svg>', e.x, e.y, seen);
       el.style.setProperty('--c', ECHO_INFO[e.type].color);
       const size = e.counter === 0 ? AM.batchSize(e) : e.activeB;
       const pips = el.querySelector('.pips');
@@ -377,8 +420,9 @@
       const d = AM.DELTA[e.batch[0]], tx = e.x + d[0], ty = e.y + d[1];
       if (tx < 0 || ty < 0 || tx >= L.w || ty >= L.h) continue;
       const blocked = walker(e) ? !!obstacle(L, S, tx, ty) : !!AM.placementError(L, S, tx, ty);
-      const el = actor('pred' + e.id, 'pred' + (blocked ? ' blk' : ''), '<div class="po"></div><i></i><b></b>', tx, ty, seen);
+      const el = actor('pred' + e.id, 'pred' + (blocked ? ' blk' : ''), '<s class="tl"></s><div class="po"></div><i></i><b></b>', tx, ty, seen);
       el.style.setProperty('--c', ECHO_INFO[e.type].color);
+      el.querySelector('.tl').style.transform = 'rotate(' + { RIGHT: 180, LEFT: 0, DOWN: 270, UP: 90 }[e.batch[0]] + 'deg)';
       el.querySelector('b').textContent = e.activeB - e.counter;
       el.querySelector('i').textContent = blocked ? '✕' : '';
     }
@@ -399,8 +443,8 @@
   function buildCards() {
     $('#echoCards').innerHTML = G.S.echoes.map((e) => {
       const info = ECHO_INFO[e.type];
-      return '<div class="ecard" data-id="' + e.id + '" style="--c:' + info.color + '"><div class="ecard-top"><div class="glyph ' + e.type + '"><span>' + info.glyph + '</span></div>' +
-        '<div><b>' + info.name + '</b><small>' + esc(info.role) + '</small></div>' + (e.required ? '<span class="etag">REQUIRED</span>' : '') + '</div>' +
+      return '<div class="ecard" data-id="' + e.id + '" style="--c:' + info.color + '"><div class="ecard-top"><div class="glyph ' + e.type + '"><span>' + glyphOf(e) + '</span></div>' +
+        '<div><b>' + nm(e) + '</b><small>' + esc(info.role) + '</small></div>' + (e.required ? '<span class="etag">REQUIRED</span>' : '') + '</div>' +
         '<div class="tape"></div><div class="estatus"></div></div>';
     }).join('');
   }
@@ -420,6 +464,12 @@
       });
       card.querySelector('.estatus').innerHTML = cardStatus(e);
     }
+    // mood
+    const B = document.body.classList;
+    B.toggle('danger', S.status === 'play' && !!L.maxMoves && L.maxMoves - S.moves <= 3);
+    B.toggle('favoured', S.echoes.some((e) => e.state === 'FAVOURED'));
+    B.toggle('hopmode', !!G.hop);
+    B.toggle('won', S.status === 'won');
     // header
     const par = L.par, stars = P.starsFor(S.moves, par), lim2 = par ? P.twoStarLimit(par) : 0;
     $('#gStars').innerHTML = [1, 2, 3].map((k) => '<svg class="' + (k <= stars ? 'lit' : '') + '"><use href="#i-star"/></svg>').join('');
@@ -434,7 +484,7 @@
     const doors = [...new Set(Object.values(L.doors))];
     doors.forEach((d) => g.push({ done: !!S.open[d], text: 'Open door ' + d + ' (hold plate ' + d.toLowerCase() + ')' }));
     if (L.exitLock.length) g.push({ done: AM.exitReady(L, S), text: 'Power the portal' });
-    req.forEach((e) => g.push({ done: !e.hopping && AM.isExit(L, e.x, e.y), text: 'Bring ' + ECHO_INFO[e.type].name + ' to the portal' }));
+    req.forEach((e) => g.push({ done: !e.hopping && AM.isExit(L, e.x, e.y), text: 'Bring ' + nm(e) + ' to the portal' }));
     g.push({ done: S.status === 'won', text: req.length ? 'Reach the portal together' : 'Reach the portal' });
     if (L.maxMoves) g.push({ done: false, text: 'Finish within ' + L.maxMoves + ' moves (' + (L.maxMoves - S.moves) + ' left)' });
     const total = G.startCoins, got = total - S.coins.length;
@@ -473,7 +523,7 @@
       $('#coachWhat').innerHTML = st.say; $('#coachWhat').className = '';
       $('#coachNext').innerHTML = st.ack ? '<div><button class="btn gold" id="tutNext">Next</button></div>'
         : st.end ? nextLines(S).map((l) => '<div class="ln" style="--c:' + (l.color || 'var(--cyan)') + '"><span>' + l.h + '</span></div>').join('')
-        : '<div class="ln"><span>' + (st.expect === 'RIGHT' ? 'Waiting for ' + arrHtml('RIGHT') : st.expect === 'fire' ? 'Keep moving: Trace acts when the tape is full.' : 'Make any move.') + '</span></div>';
+        : '<div class="ln"><span>' + (st.expect === 'RIGHT' ? 'Waiting for ' + arrHtml('RIGHT') : st.expect === 'fire' ? 'Keep moving: Echo follows its trace when the tape is full.' : 'Make any move.') + '</span></div>';
       const nb = $('#tutNext'); if (nb) nb.onclick = nextTut;
       spotEls(st.spot).forEach((el) => el && el.classList.add('spot'));
     } else {
@@ -487,7 +537,10 @@
   const WORD = { UP: 'up', RIGHT: 'right', DOWN: 'down', LEFT: 'left' };
   const arr = (d, head) => '<span class="arr' + (head ? ' h' : '') + '">' + AR[d] + '</span>';
   const seq = (b) => b.map((d, i) => arr(d, i === 0)).join(' ');
-  const nm = (e) => ECHO_INFO[e.type].name;
+  // Echoes of the same kind are numbered ("Echo 1", "Echo 2") so twins can be told apart.
+  const dupNo = (e) => { const same = G.S.echoes.filter((q) => q.type === e.type); return same.length > 1 ? same.findIndex((q) => q.id === e.id) + 1 : 0; };
+  const nm = (e) => ECHO_INFO[e.type].name + (dupNo(e) ? ' ' + dupNo(e) : '');
+  const glyphOf = (e) => ECHO_INFO[e.type].glyph + (dupNo(e) ? '<sub>' + dupNo(e) + '</sub>' : '');
   const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
   const walker = (e) => e.type === 'trace' || e.type === 'flicker';
   function obstacle(L, S, x, y) {
@@ -580,12 +633,12 @@
         if (e.counter === 0) out.push({ color, h: size === 1 ? n + ' copies every move right now.' : 'Your next move starts ' + n + '\'s new group: ' + n + ' will step that way after ' + plural(size, 'move') + ' (watch the tape).' });
         else {
           const hd = e.batch[0], d = AM.DELTA[hd], ob = obstacle(L, S, e.x + d[0], e.y + d[1]);
-          out.push({ color, h: n + ' will step ' + arr(hd, true) + ' in ' + plural(left, 'move') + ' (dashed square).' + (ob ? ' Right now ' + ob + ' is there, so it would bump into it and stay put.' : '') + ' Your next ' + plural(left, 'move') + ' won\'t change that.' });
+          out.push({ color, h: n + ' will step ' + arr(hd, true) + ' in ' + plural(left, 'move') + ' (its trace on the board).' + (ob ? ' Right now ' + ob + ' is there, so it would bump into it and stay put.' : '') + ' Your next ' + plural(left, 'move') + ' won\'t change that.' });
         }
       } else if (e.type === 'mason') {
         if (e.charges <= 0) out.push({ color, h: 'Mason has no blocks left.' });
         else if (e.counter === 0) out.push({ color, h: 'Your next move picks where Mason builds: it builds a block in that direction after ' + plural(size, 'move') + '.' });
-        else out.push({ color, h: 'Mason will build a block ' + arr(e.batch[0], true) + ' of itself in ' + plural(left, 'move') + ' (dashed square).' });
+        else out.push({ color, h: 'Mason will build a block ' + arr(e.batch[0], true) + ' of itself in ' + plural(left, 'move') + ' (its trace on the board).' });
       } else if (e.type === 'keeper') {
         const h = S.helpers.find((q) => q.owner === e.id);
         if (h) out.push({ color, h: h.state === 'PERFORM' ? 'The helper holds the plate for ' + plural(h.hold, 'more move') + '.' : 'The helper is walking to the plate. It has ' + plural(h.life, 'move') + ' to get there.' });
@@ -720,7 +773,7 @@
     if (reduced()) return;
     const el = document.createElement('div');
     el.className = 'actor fx-x instant'; el.textContent = '✕';
-    el.style.transform = 'translate(' + x * 100 + '%,' + y * 100 + '%)';
+    el.style.transform = tr(x, y);
     actorsEl.appendChild(el);
     const a = anim(el, [{ opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1.2, offset: 0.3 }, { opacity: 0, scale: 1 }], { duration: 520 });
     if (a) a.onfinish = () => el.remove(); else el.remove();
@@ -729,7 +782,7 @@
     if (reduced()) return;
     const el = document.createElement('div');
     el.className = 'actor instant';
-    el.style.transform = 'translate(' + x * 100 + '%,' + y * 100 + '%)';
+    el.style.transform = tr(x, y);
     el.innerHTML = '<div class="ripple" style="inset:14%;border-color:' + color + '"></div>';
     actorsEl.appendChild(el);
     const a = anim(el.firstChild, [{ opacity: 1, transform: 'scale(.6)' }, { opacity: 0, transform: 'scale(2)' }], { duration: 520 });
@@ -753,8 +806,31 @@
     const a = anim(el, [{ transform: 'translate(0,0) scale(1)' }, { transform: 'translate(' + dx * 0.4 + 'px,' + (dy * 0.4 - 60) + 'px) scale(1.2)', offset: 0.45 }, { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(.6)', opacity: 0.9 }], { duration: 650, easing: 'ease-in' });
     if (a) a.onfinish = () => { el.remove(); anim(target, [{ transform: 'scale(1.2)' }, { transform: 'scale(1)' }], { duration: 220 }); }; else el.remove();
   }
+  /* Floors light up under your steps; on reactive and boss levels a wave rolls out from you on
+     every move and the frame beats when an echo acts. */
+  function floorFx(next, fired) {
+    if (reduced()) return;
+    const px = next.player.x, py = next.player.y, glow = getComputedStyle(document.body).getPropertyValue('--glow').trim() || '#4fe3ff';
+    const lightTile = (x, y, delay, strength, dur) => {
+      const el = tileEls[y] && tileEls[y][x]; if (!el || el.classList.contains('wall')) return;
+      const l = document.createElement('i'); l.className = 'lit'; l.style.background = glow; l.style.opacity = 0;
+      el.appendChild(l);
+      const a = l.animate([{ opacity: 0 }, { opacity: strength, offset: 0.25 }, { opacity: 0 }], { duration: dur, delay, easing: 'ease-out' });
+      a.onfinish = () => l.remove();
+    };
+    lightTile(px, py, 0, 0.28, 700);
+    if (!G.react) return;
+    const L = G.L;
+    for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
+      const d = Math.abs(x - px) + Math.abs(y - py);
+      if (d > 0 && d <= 6) lightTile(x, y, d * 45, 0.16 * (1 - d / 7), 520);
+    }
+    const strong = fired.size > 0;
+    anim($('#frame'), [{ transform: 'scale(1)' }, { transform: strong ? 'scale(1.012)' : 'scale(1.004)' }, { transform: 'scale(1)' }], { duration: strong ? 320 : 180 });
+  }
   function fx(prev, next, events, meta) {
     const fired = new Set(events.filter((e) => e.echo).map((e) => e.echo));
+    if (meta.kind === 'move') floorFx(next, fired);
     if (meta.kind === 'move') {
       const p = actorEls.get('player');
       if (p) anim(p.querySelector('.orb'), [{ transform: 'scale(1.2,.82)' }, { transform: 'scale(1)' }], { duration: 180, easing: 'cubic-bezier(.3,1.4,.5,1)' });
@@ -804,7 +880,13 @@
   function victory() {
     if (!G || G.S.status !== 'won') return;
     const L = G.L, S = G.S, collected = G.startCoins - S.coins.length;
-    const receipt = P.applyClear(prog, L, { moves: S.moves, collected, usedHint: G.usedHint }, Date.now());
+    let receipt;
+    if (G.daily) {
+      const stars = P.starsFor(S.moves, L.par), d = P.applyDaily(prog, today(), S.moves <= L.par && !G.usedHint);
+      const rec = P.record(prog, L.id); rec.best = rec.best === null ? S.moves : Math.min(rec.best, S.moves); rec.stars = Math.max(rec.stars, stars);
+      receipt = { lines: d.lines.length ? d.lines : [{ label: 'Already claimed today', value: 0, tone: 'dim' }], total: d.total, stars, best: rec.best, first: false, newBest: false,
+        next: 'Daily streak: ' + (d.streak || P.dailyStatus(prog, today()).streak) + ' day(s). A new Daily Echo appears tomorrow; keep the streak alive for bigger bonuses.' };
+    } else receipt = P.applyClear(prog, L, { moves: S.moves, collected, usedHint: G.usedHint }, Date.now());
     persist();
     const last = G.idx === LEVELS.length - 1;
     openModal(
@@ -818,11 +900,13 @@
       '<div class="note"><svg><use href="#i-restart"/></svg><span>' + esc(receipt.next) + '</span></div>' +
       (last ? '<p>You finished every level. More worlds are on the way.</p>' : '') +
       '<div class="row"><button class="btn" id="vMap"><svg><use href="#i-map"/></svg>Map</button><button class="btn" id="vReplay"><svg><use href="#i-restart"/></svg>Replay</button>' +
-      (last ? '' : '<button class="btn gold big" id="vNext">Next level<svg><use href="#i-play"/></svg></button>') + '</div>',
+      (last || G.daily ? '' : '<button class="btn gold big" id="vNext">Next level<svg><use href="#i-play"/></svg></button>') +
+      (G.daily ? '<button class="btn gold big" id="vHome">Home<svg><use href="#i-play"/></svg></button>' : '') + '</div>',
       () => {
         on('vMap', () => { mapSel = Math.min(G.idx + 1, LEVELS.length - 1); mapWorld = LEVELS[mapSel].world; show('map'); });
         on('vReplay', () => startLevel(G.idx));
         on('vNext', () => startLevel(G.idx + 1));
+        on('vHome', () => show('title'));
         [1, 2, 3].forEach((k) => { if (k <= receipt.stars) setTimeout(() => SFX.star(k), (reduced() ? 0 : 350 + k * 180)); });
         countUp($('#countUp'), receipt.total);
         confetti();
@@ -865,7 +949,7 @@
     const back = screen === 'game' ? '<button class="btn gold big" id="hOk">Back to the level</button>' : '<button class="btn gold big" id="hOk">Got it</button>';
     openModal('<h2>How to play</h2>' +
       '<p>Reach the portal. Every move you make is recorded, and each <b style="color:var(--gold)">echo</b> groups your moves into batches. When a batch is full, the echo copies <b>only its first move</b>. The rest are thrown away.</p>' +
-      '<div class="help-demo card"><div class="ecard-top"><div class="glyph trace" style="--g:40px"><span>T</span></div><div><b style="color:var(--gold)">Trace · batch of 4</b><small>You move ↑ → ↓ ←. Trace takes one step ↑.</small></div></div>' +
+      '<div class="help-demo card"><div class="ecard-top"><div class="glyph trace" style="--g:40px"><span>E</span></div><div><b style="color:var(--gold)">Echo · groups of 4</b><small>You move ↑ → ↓ ←. Echo takes one step ↑.</small></div></div>' +
       '<div class="tape"><div class="slot filled head">' + ARROW('UP') + '</div><div class="slot filled">' + ARROW('RIGHT') + '</div><div class="slot filled">' + ARROW('DOWN') + '</div><div class="slot filled">' + ARROW('LEFT') + '</div></div></div>' +
       '<ul class="help-list"><li>Moves into walls are not recorded. A blocked echo still uses up its batch, so walls let it wait.</li>' +
       '<li>Plates hold doors open while something stands on them. Crates can be pushed but never pulled.</li>' +
@@ -935,6 +1019,7 @@
   $('#mapPrev').onclick = () => switchWorld(-1); $('#mapNext').onclick = () => switchWorld(1);
   $('#stuckUndo').onclick = undo; $('#stuckRestart').onclick = restart;
   $('#tContinue').onclick = () => { SFX.click(); startLevel(P.nextLevelIndex(prog, LEVELS)); };
+  $('#tDaily').onclick = playDaily; $('#tChest').onclick = () => { SFX.click(); openChestModal(); };
   $$('[data-go]').forEach((b) => (b.onclick = () => { SFX.click(); if (b.dataset.go === 'map') { mapSel = null; mapWorld = null; } show(b.dataset.go); }));
   $$('[data-open]').forEach((b) => (b.onclick = () => { SFX.click(); b.dataset.open === 'help' ? help() : settings(); }));
   $('#overlay').addEventListener('click', (e) => { if (e.target === $('#overlay') && G && G.S.status === 'play' && screen === 'game') closeModal(); });

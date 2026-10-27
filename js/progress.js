@@ -27,7 +27,7 @@
   const twoStarLimit = (par) => Math.ceil(par * 1.25);
 
   function defaults() {
-    return { v: 2, coins: 0, levels: {}, seen: {}, sound: true, reduceMotion: false, freeHintDay: '', introDone: false };
+    return { v: 2, coins: 0, levels: {}, seen: {}, sound: true, reduceMotion: false, freeHintDay: '', introDone: false, daily: {}, chests: 0 };
   }
   function record(prog, id) {
     return prog.levels[id] || (prog.levels[id] = { stars: 0, best: null, clears: 0, k: 0, life: 0, lastPaid: 0 });
@@ -106,5 +106,44 @@
   }
   function save(prog) { try { localStorage.setItem(KEY, JSON.stringify(prog)); } catch (e) { /* storage unavailable */ } }
 
-  return { RULES, baseReward, starsFor, twoStarLimit, defaults, record, applyClear, nextReplayInfo, isUnlocked, totalStars, nextLevelIndex, chargeHint, hintPrice, load, save };
+  /* ---------- daily echo: one cleared level per day, streak bonus ---------- */
+  const DAILY = { base: 60, perStreak: 20, maxBonusDays: 7, perfectMult: 2 };
+  const dayShift = (day, n) => { const d = new Date(day + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  /* The daily level is drawn from levels the player has already cleared, so it is always fair. */
+  function dailyLevelIndex(prog, levels, day) {
+    const pool = levels.map((l, i) => i).filter((i) => prog.levels[levels[i].id] && prog.levels[levels[i].id].clears);
+    return pool.length ? pool[hashStr('aftermotion:' + day) % pool.length] : -1;
+  }
+  function dailyStatus(prog, day) {
+    const d = prog.daily || {};
+    const alive = d.last === day || d.last === dayShift(day, -1);
+    return { done: d.last === day, streak: alive ? d.streak || 0 : 0 };
+  }
+  function applyDaily(prog, day, perfect) {
+    const st = dailyStatus(prog, day);
+    if (st.done) return { total: 0, already: true, streak: st.streak, lines: [] };
+    const streak = st.streak + 1, lines = [];
+    const base = DAILY.base * (perfect ? DAILY.perfectMult : 1);
+    lines.push({ label: perfect ? 'Daily Echo, perfect run (×2)' : 'Daily Echo clear', value: base, tone: perfect ? 'gold' : '' });
+    const bonus = DAILY.perStreak * Math.min(streak - 1, DAILY.maxBonusDays);
+    if (bonus) lines.push({ label: 'Streak bonus (day ' + streak + ')', value: bonus, tone: 'good' });
+    prog.daily = { last: day, streak };
+    const total = base + bonus;
+    prog.coins += total;
+    return { total, streak, lines };
+  }
+
+  /* ---------- star chests: one every 10 stars ---------- */
+  const CHEST_STARS = 10;
+  const chestsAvailable = (prog) => Math.max(0, Math.floor(totalStars(prog) / CHEST_STARS) - (prog.chests || 0));
+  const nextChestAt = (prog) => ((prog.chests || 0) + 1) * CHEST_STARS;
+  function openChest(prog) {
+    if (!chestsAvailable(prog)) return 0;
+    const coins = 50 + 25 * (prog.chests || 0);
+    prog.chests = (prog.chests || 0) + 1; prog.coins += coins;
+    return coins;
+  }
+
+  return { DAILY, dayShift, dailyLevelIndex, dailyStatus, applyDaily, CHEST_STARS, chestsAvailable, nextChestAt, openChest, RULES, baseReward, starsFor, twoStarLimit, defaults, record, applyClear, nextReplayInfo, isUnlocked, totalStars, nextLevelIndex, chargeHint, hintPrice, load, save };
 });

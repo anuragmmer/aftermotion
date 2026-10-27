@@ -159,6 +159,26 @@ t('Hints: one free per day, then cost coins; unlocks are sequential', () => {
   assert.ok(P.isUnlocked(prog, LEVELS, 0)); assert.ok(!P.isUnlocked(prog, LEVELS, 1));
   P.applyClear(prog, LEVELS[0], { moves: 99, collected: 0 }, 0); assert.ok(P.isUnlocked(prog, LEVELS, 1));
 });
+t('Daily echo: one reward per day, streak grows on consecutive days and resets after a gap', () => {
+  const prog = P.defaults();
+  assert.strictEqual(P.dailyLevelIndex(prog, LEVELS, '2026-10-27'), -1, 'locked until a level is cleared');
+  P.applyClear(prog, LEVELS[0], { moves: 99, collected: 0 }, 0); P.applyClear(prog, LEVELS[1], { moves: 99, collected: 0 }, 0);
+  const i = P.dailyLevelIndex(prog, LEVELS, '2026-10-27'); assert.ok(i === 0 || i === 1);
+  assert.strictEqual(P.dailyLevelIndex(prog, LEVELS, '2026-10-27'), i, 'stable within a day');
+  const c0 = prog.coins;
+  assert.strictEqual(P.applyDaily(prog, '2026-10-27', false).total, 60);
+  assert.ok(P.applyDaily(prog, '2026-10-27', true).already); assert.strictEqual(prog.coins, c0 + 60);
+  const d2 = P.applyDaily(prog, '2026-10-28', true); assert.strictEqual(d2.streak, 2); assert.strictEqual(d2.total, 120 + 20);
+  assert.strictEqual(P.dailyStatus(prog, '2026-10-30').streak, 0, 'missed a day');
+  assert.strictEqual(P.applyDaily(prog, '2026-10-30', false).streak, 1);
+});
+t('Star chests: one per 10 stars, increasing value, cannot double-open', () => {
+  const prog = P.defaults();
+  for (let i = 0; i < 7; i++) P.applyClear(prog, LEVELS[i], { moves: LEVELS[i].par, collected: 0 }, 0); // 21 stars
+  assert.strictEqual(P.chestsAvailable(prog), 2);
+  assert.strictEqual(P.openChest(prog), 50); assert.strictEqual(P.openChest(prog), 75); assert.strictEqual(P.openChest(prog), 0);
+  assert.strictEqual(P.nextChestAt(prog), 30);
+});
 function replay(def) {
   let { level: L, state: S } = AM.loadLevel(def);
   for (const tok of def.solution.match(/H\d+,\d+;|[URDLF]/g)) {
