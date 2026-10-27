@@ -1,0 +1,206 @@
+[
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "###########",
+   "#.......#.#",
+   "#......P#.#",
+   "#a..#...#X#",
+   "#.T..Z..#.#",
+   "#...#...A.#",
+   "###########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T"
+  ],
+  "par": 15,
+  "states": 5350,
+  "path": "UDUDLURDDDDRRUU"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "##########",
+   "#.....ZA.#",
+   "#....#P#X#",
+   "#....#.#.#",
+   "#a.#..T#.#",
+   "#......#.#",
+   "##########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T"
+  ],
+  "par": 42,
+  "states": 20257,
+  "path": "UDUDDUDUDUULLRRLLRLRLRRLLRRLLRLDURRDURLRRD"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "############",
+   "#.#.#....A.#",
+   "#.a.T.P..#X#",
+   "#........#.#",
+   "#......Z.#.#",
+   "############"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T"
+  ],
+  "par": 18,
+  "states": 7446,
+  "path": "URRDLUDULRRDURLRRD"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "############",
+   "#...#..Z.#X#",
+   "#........#.#",
+   "#...P#...A.#",
+   "#....aM..#.#",
+   "############"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "M"
+  ],
+  "par": 18,
+  "states": 8351,
+  "path": "URURRRDULRDUDDRRUU"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "##########",
+   "#...P#.#X#",
+   "#.#....#.#",
+   "##.T...A.#",
+   "#...a..#.#",
+   "#..#..Z#.#",
+   "##########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T"
+  ],
+  "par": 14,
+  "states": 3857,
+  "path": "DUDRRUDUDDRRUU"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "############",
+   "#........A.#",
+   "#..P#....#X#",
+   "#......Z.#.#",
+   "#...#M.#.#.#",
+   "#.#..a..##.#",
+   "############"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "M"
+  ],
+  "par": 13,
+  "states": 2764,
+  "path": "URRRDURDURRRD"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "##########",
+   "#..##..#.#",
+   "#..a...A.#",
+   "#.F..#Z#X#",
+   "##.P#..#.#",
+   "##########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "F"
+  ],
+  "par": 14,
+  "states": 64046,
+  "path": "UURRUDUDURDRRD"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "###########",
+   "#...#.#T#X#",
+   "#.P..a..A.#",
+   "#.......#.#",
+   "#..#...Z#.#",
+   "###########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T"
+  ],
+  "par": 20,
+  "states": 7941,
+  "path": "DUURLRDRRUDRLUDRRRRU"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "###########",
+   "#....#..AX#",
+   "#.#.##Z##.#",
+   "#...aT..#.#",
+   "#.....P.#.#",
+   "###########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T"
+  ],
+  "par": 10,
+  "states": 612,
+  "path": "UUURLRLRRR"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "###########",
+   "##......#.#",
+   "#.#...aP#.#",
+   "#.....M.AX#",
+   "##.##.Z.#.#",
+   "###########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "M"
+  ],
+  "par": 13,
+  "states": 1984,
+  "path": "DUUDUDUDUDDRR"
+ }
+]
