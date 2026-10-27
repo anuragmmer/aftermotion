@@ -1,0 +1,22 @@
+[
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "############",
+   "#........#.#",
+   "#.#....T.#X#",
+   "#..#..PZ.#.#",
+   "#a#...#..A.#",
+   "############"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T"
+  ],
+  "par": 55,
+  "states": 24688,
+  "path": "UURRDUDULRDULRDULRDULRDDUUDULRDULRDUDUDUDUDUDUDUDDDRRUU"
+ }
+]

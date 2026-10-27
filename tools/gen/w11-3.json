@@ -1,0 +1,42 @@
+[
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "##########",
+   "#.....T#X#",
+   "#...#a.#.#",
+   "#Z.....A.#",
+   "#P##...#.#",
+   "##########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T"
+  ],
+  "par": 20,
+  "states": 2114,
+  "path": "UUURRRRRDUDULRDDRRUU"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "##########",
+   "#...Z#.A.#",
+   "#...PT.#X#",
+   "#.#....#.#",
+   "#a.#...#.#",
+   "##########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T"
+  ],
+  "par": 30,
+  "states": 9159,
+  "path": "LURDLURDLURDLURDDUUDDUUDRRURRD"
+ }
+]

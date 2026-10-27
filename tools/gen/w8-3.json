@@ -1,0 +1,285 @@
+[
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "###########",
+   "#.aP#.b.#X#",
+   "#.o.A...#.#",
+   "#...#...#.#",
+   "#..T#..##.#",
+   "#..###..B.#",
+   "###########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T",
+   "crate"
+  ],
+  "par": 34,
+  "states": 27630,
+  "path": "DUDDUUDDUDDLRULURUDRRRDDUDDRRRUUUU"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "##########",
+   "#.P.##.#.#",
+   "#T#.Ab.#.#",
+   "#ao.#..#X#",
+   "#...##.B.#",
+   "##########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T",
+   "crate"
+  ],
+  "par": 32,
+  "states": 7195,
+  "path": "RDUDUDULRDULRDUDDUDLRUUDRRRDDRRU"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "##########",
+   "#P..#..#.#",
+   "#.T.#.##.#",
+   "#.o.#.##.#",
+   "##..A..#.#",
+   "#.a.#b.BX#",
+   "##########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T",
+   "crate"
+  ],
+  "par": 27,
+  "states": 17164,
+  "path": "RRDUDUDUDUDLRLDDRUUDDRRRDRR"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "############",
+   "#...#....#.#",
+   "##..#b...B.#",
+   "#...A....#.#",
+   "#To.##...#X#",
+   "#Pa.#....#.#",
+   "############"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T",
+   "crate"
+  ],
+  "par": 28,
+  "states": 29668,
+  "path": "UURURUDLRUDLRDLDRURRURRRRRDD"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "###########",
+   "#.#.A...BX#",
+   "#a..##.b#.#",
+   "##o.#...#.#",
+   "#..T#...#.#",
+   "#P..#...#.#",
+   "###########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T",
+   "crate"
+  ],
+  "par": 34,
+  "states": 15100,
+  "path": "URURUUDDUUDLRURRRRDLRUDUDUDLRUDURR"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "############",
+   "#Pa.#.#..#.#",
+   "#.o##....B.#",
+   "#.T##..b.#X#",
+   "##..A....#.#",
+   "#...#....#.#",
+   "############"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T",
+   "crate"
+  ],
+  "par": 31,
+  "states": 10641,
+  "path": "DURLRLDDRUDDRRRUUUDRRURLRDUDRRD"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "##########",
+   "#...#..#.#",
+   "##a.#.##.#",
+   "#.o##..B.#",
+   "#PT.Ab##X#",
+   "##########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T",
+   "crate"
+  ],
+  "par": 15,
+  "states": 1132,
+  "path": "RUDRRRLLRRURRRD"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "###########",
+   "#a..#...#.#",
+   "#.oP#.#.#.#",
+   "#.#.A...#X#",
+   "#T..#.b.B.#",
+   "###########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T",
+   "crate"
+  ],
+  "par": 35,
+  "states": 9924,
+  "path": "DUULRDLURDDDUDLLRLUURURDDUDRRRRDRRU"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "###########",
+   "#...#...#.#",
+   "#.T.#..##.#",
+   "#ao.#...#X#",
+   "#...Ab..#.#",
+   "##P##.#.B.#",
+   "###########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T",
+   "crate"
+  ],
+  "par": 33,
+  "states": 21351,
+  "path": "URUUDUUDDUDLRUUDDUULRDDDRRRRDRRUU"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "##########",
+   "#.#.#..#X#",
+   "#...#.##.#",
+   "#PoTA..#.#",
+   "#...#..B.#",
+   "#.a.#.b#.#",
+   "##########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T",
+   "crate"
+  ],
+  "par": 33,
+  "states": 23819,
+  "path": "UUDUDUDRRLDDRUUUDUDUDUDDRRRDRRUUU"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "###########",
+   "#...P#.##.#",
+   "#..T.##o#.#",
+   "#b.o.A..#.#",
+   "##...##.BX#",
+   "#...a#..#.#",
+   "###########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T",
+   "crate"
+  ],
+  "par": 20,
+  "states": 35175,
+  "path": "DUDLLDRULRRDDURRRDRR"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "############",
+   "#.a..#...#X#",
+   "#.To.##..B.#",
+   "#.#..#..b#.#",
+   "##..P###.#.#",
+   "#..#.A...#.#",
+   "############"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T",
+   "crate"
+  ],
+  "par": 51,
+  "states": 35957,
+  "path": "DUULRLURDUUDDUULRDUDDUULRDULRDDLRDDRRRRUUUUDUDUDRRU"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "###########",
+   "#....##.B.#",
+   "#a..##..#.#",
+   "#....A.b#X#",
+   "##o.P##.#.#",
+   "#..T.#.##.#",
+   "###########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T",
+   "crate"
+  ],
+  "par": 28,
+  "states": 32884,
+  "path": "UDDLUDLURLURRLULRDRRRURURRDD"
+ }
+]
