@@ -59,9 +59,12 @@
   }
 
   /* ---------- map ---------- */
-  function mapPoints() {
+  const WORLDS = LEVELS.WORLDS;
+  let mapWorld = null;
+  const levelsOf = (w) => LEVELS.map((l, i) => ({ l, i })).filter((o) => o.l.world === w);
+  function mapPoints(n) {
     const xs = [130, 375, 625, 870], pts = [];
-    for (let i = 0; i < LEVELS.length + 1; i++) {
+    for (let i = 0; i < n; i++) {
       const row = Math.floor(i / 4), col = i % 4, c = row % 2 ? 3 - col : col;
       pts.push({ x: xs[c], y: 95 + row * 210 + Math.sin(i * 1.7) * 14 });
     }
@@ -70,31 +73,45 @@
   function levelChips(def) {
     const s = def.map.join(''), out = [];
     if (s.includes('T')) out.push('Trace'); if (s.includes('F')) out.push('Flicker'); if (s.includes('M')) out.push('Mason'); if (s.includes('K')) out.push('Keeper');
-    if (/[a-d]/.test(s)) out.push('Plate + door'); if (s.includes('o')) out.push('Push block'); if (s.includes('c')) out.push('Coins'); if (s.includes('Z')) out.push('Blocker');
+    if (/[a-d]/.test(s)) out.push('Plate + door'); if (s.includes('o')) out.push('Crate'); if (s.includes('c')) out.push('Coins'); if (s.includes('Z')) out.push('Blocker');
+    if (def.exitLock) out.push('Powered portal');
     if (def.maxMoves) out.push(def.maxMoves + ' move limit');
     out.push(def.mode === 'together' ? 'Escape together' : 'Escape through');
     return out;
   }
+  const cleared = (l) => !!(prog.levels[l.id] && prog.levels[l.id].clears);
   function renderMap() {
-    const pts = mapPoints(), cur = P.nextLevelIndex(prog, LEVELS);
+    const cur = P.nextLevelIndex(prog, LEVELS);
     if (mapSel === null) mapSel = cur;
+    if (mapWorld === null) mapWorld = LEVELS[mapSel].world;
+    const W = WORLDS[mapWorld - 1], items = levelsOf(mapWorld);
+    if (LEVELS[mapSel].world !== mapWorld) mapSel = (items.find((o) => P.isUnlocked(prog, LEVELS, o.i) && !cleared(o.l)) || items[0]).i;
+    $('#mapKicker').textContent = 'WORLD ' + W.id + ' OF ' + WORLDS.length + ' · LEVELS ' + items[0].l.id + '–' + items[items.length - 1].l.id;
+    $('#mapName').textContent = W.name;
+    $('#mapBlurb').textContent = W.blurb + ' ' + items.filter((o) => cleared(o.l)).length + ' / ' + items.length + ' cleared.';
+    $('#mapPrev').disabled = mapWorld === 1; $('#mapNext').disabled = mapWorld === WORLDS.length;
+    const pts = mapPoints(items.length + 1);
     const toPct = (p) => ({ left: p.x / 10 + '%', top: (p.y / 620) * 100 + '%' });
     const d = (arr) => arr.map((p, i) => (i ? 'L' : 'M') + p.x + ' ' + p.y.toFixed(0)).join(' ');
     $('#mapPathAll').setAttribute('d', d(pts));
-    const doneCount = LEVELS.filter((l) => prog.levels[l.id] && prog.levels[l.id].clears).length;
-    $('#mapPathDone').setAttribute('d', d(pts.slice(0, Math.min(doneCount, LEVELS.length - 1) + 1)));
+    const doneCount = items.filter((o) => cleared(o.l)).length;
+    $('#mapPathDone').setAttribute('d', doneCount ? d(pts.slice(0, Math.min(doneCount, items.length - 1) + 1)) : '');
     let html = '';
-    LEVELS.forEach((l, i) => {
-      const rec = prog.levels[l.id], unlocked = P.isUnlocked(prog, LEVELS, i), p = toPct(pts[i]);
-      const cls = 'node' + (!unlocked ? ' locked' : i === cur && !(rec && rec.clears) ? ' cur' : '') + (i === mapSel ? ' sel' : '');
-      const stars = rec && rec.clears ? '<span class="nstars">' + [1, 2, 3].map((k) => '<svg style="fill:' + (k <= rec.stars ? 'var(--gold)' : 'transparent') + '"><use href="#i-star"/></svg>').join('') + '</span>' : '';
+    items.forEach(({ l, i }, k) => {
+      const rec = prog.levels[l.id], unlocked = P.isUnlocked(prog, LEVELS, i), p = toPct(pts[k]);
+      const cls = 'node' + (!unlocked ? ' locked' : i === cur && !cleared(l) ? ' cur' : '') + (i === mapSel ? ' sel' : '');
+      const stars = rec && rec.clears ? '<span class="nstars">' + [1, 2, 3].map((q) => '<svg style="fill:' + (q <= rec.stars ? 'var(--gold)' : 'transparent') + '"><use href="#i-star"/></svg>').join('') + '</span>' : '';
       html += '<button class="' + cls + '" data-i="' + i + '" style="left:' + p.left + ';top:' + p.top + '" aria-label="Level ' + l.id + (unlocked ? '' : ' (locked)') + '">' +
         (unlocked ? l.id : '<svg><use href="#i-lock"/></svg>') + stars + '</button>';
     });
-    const fp = toPct(pts[LEVELS.length]);
-    html += '<div class="node future" style="left:' + fp.left + ';top:' + fp.top + '"><svg><use href="#i-lock"/></svg>World 2</div>';
-    const ap = toPct(pts[cur]);
-    html += '<div class="avatar" style="left:' + ap.left + ';top:' + ap.top + '"></div>';
+    const fp = toPct(pts[items.length]), nextW = WORLDS[mapWorld];
+    html += nextW
+      ? '<button class="node future" id="mapNextWorld" style="left:' + fp.left + ';top:' + fp.top + '"><svg><use href="' + (P.isUnlocked(prog, LEVELS, levelsOf(nextW.id)[0].i) ? '#i-play' : '#i-lock') + '"/></svg>' + esc(nextW.name) + '</button>'
+      : '<div class="node future" style="left:' + fp.left + ';top:' + fp.top + '"><svg><use href="#i-lock"/></svg>More soon</div>';
+    if (LEVELS[cur].world === mapWorld) {
+      const ap = toPct(pts[items.findIndex((o) => o.i === cur)]);
+      html += '<div class="avatar" style="left:' + ap.left + ';top:' + ap.top + '"></div>';
+    }
     $('#mapNodes').innerHTML = html;
     $$('#mapNodes .node[data-i]').forEach((b) => (b.onclick = () => {
       const i = +b.dataset.i;
@@ -102,7 +119,14 @@
       SFX.click();
       if (mapSel === i) startLevel(i); else { mapSel = i; renderMap(); }
     }));
+    const nw = $('#mapNextWorld'); if (nw) nw.onclick = () => switchWorld(1);
     renderMapInfo();
+  }
+  function switchWorld(dir) {
+    const w = mapWorld + dir; if (w < 1 || w > WORLDS.length) return;
+    SFX.click(); mapWorld = w; mapSel = -1;
+    const items = levelsOf(w); mapSel = (items.find((o) => P.isUnlocked(prog, LEVELS, o.i) && !cleared(o.l)) || items[0]).i;
+    renderMap();
   }
   function renderMapInfo() {
     const i = mapSel, l = LEVELS[i], rec = prog.levels[l.id], unlocked = P.isUnlocked(prog, LEVELS, i);
@@ -110,6 +134,7 @@
     const maxFirst = Math.round(base * 1.5) + Math.round(base * 1.5 * 0.1) + coinsIn * P.RULES.coinValue;
     $('#mapInfo').innerHTML =
       '<h3>Level ' + l.id + '</h3><div class="lvl-name">' + esc(l.name) + '</div>' +
+      '<div class="lesson-badge"><svg><use href="#i-bulb"/></svg><span>' + esc(l.lesson) + '</span></div>' +
       '<div class="stars-row">' + [1, 2, 3].map((k) => '<svg style="fill:' + (rec && k <= rec.stars ? 'var(--gold)' : 'transparent') + '"><use href="#i-star"/></svg>').join('') + '</div>' +
       '<div class="chips">' + levelChips(l).map((c) => '<span class="chip">' + esc(c) + '</span>').join('') + '</div>' +
       '<p class="dim small" style="margin:0">' + esc(l.intro) + '</p>' +
@@ -151,15 +176,91 @@
     if (r.state.enemy) prog.seen.blocker = true;
     persist();
     show('game');
-    $('#gWorld').textContent = 'WORLD 1 · FIRST LIGHT · LEVEL ' + def.id;
+    $('#gWorld').textContent = 'WORLD ' + def.world + ' · ' + WORLDS[def.world - 1].name.toUpperCase() + ' · LEVEL ' + def.id;
     $('#gName').textContent = def.name;
-    buildBoard(); buildCards(); fit();
-    G.planOpen = def.id <= 4;
-    G.coach = { h: esc(def.intro), c: '' };
+    buildBoard(); buildCards(); fit(true);
+    const fresh = !cleared(def) && !(opts && opts.restart);
+    G.tut = TUTORIALS[def.id] && !cleared(def) ? { steps: TUTORIALS[def.id], i: 0 } : null;
+    G.coach = { h: '<span class="lesson-inline">Lesson: ' + esc(def.lesson) + '</span> ' + esc(def.intro), c: '' };
     G.log = [{ h: opts && opts.restart ? 'Level restarted.' : 'Level started.', c: '' }];
     render(true);
+    if (fresh) lessonCard();
+  }
+  function lessonCard() {
+    const d = G.def;
+    openModal('<div class="kicker">WORLD ' + d.world + ' · LEVEL ' + d.id + '</div><h2>' + esc(d.name) + '</h2>' +
+      '<div class="lesson-badge big"><svg><use href="#i-bulb"/></svg><span>' + esc(d.lesson) + '</span></div>' +
+      '<p class="lesson-text">' + esc(d.intro) + '</p><p class="plan" id="lcPlanText" hidden>' + esc(d.plan) + '</p>' +
+      '<div class="row"><button class="btn" id="lcPlan">Show plan</button><button class="btn gold big" id="lcGo"><svg><use href="#i-play"/></svg>Start</button></div>', () => {
+      on('lcPlan', () => { const p = $('#lcPlanText'); p.hidden = !p.hidden; $('#lcPlan').textContent = p.hidden ? 'Show plan' : 'Hide plan'; });
+      on('lcGo', () => { closeModal(); renderPanel(); });
+    });
+  }
+  function planSheet() {
+    const d = G.def;
+    openModal('<div class="kicker">LEVEL ' + d.id + ' · PLAN</div><h2>' + esc(d.name) + '</h2><div class="lesson-badge"><svg><use href="#i-bulb"/></svg><span>' + esc(d.lesson) + '</span></div>' +
+      '<p class="plan">' + esc(d.plan) + '</p><div class="row"><button class="btn gold big" id="psOk">Back to the level</button></div>', () => on('psOk', closeModal));
   }
 
+  /* ---------- tutorials: scripted, hands-on first steps ---------- */
+  const TUTORIALS = {
+    1: [
+      { say: 'Welcome! Move with the arrow keys or WASD, or swipe on the board. Try a move now.', expect: 'any' },
+      { say: 'Every level ends at the spinning portal. Follow the corridor to reach it.', end: true },
+    ],
+    2: [
+      { say: 'This gold ring is <b>Trace</b>, an echo. It repeats some of your moves, but not all of them.', spot: 'echo:1', ack: true },
+      { say: 'Every move you make goes onto Trace\'s tape (the 4 slots in the panel). Slot 1 is the one that counts.', spot: 'tape:1', ack: true },
+      { say: 'Press ' + arrHtml('RIGHT') + ' (right) once.', expect: 'RIGHT', spot: 'tape:1' },
+      { say: 'Your ' + arrHtml('RIGHT') + ' landed in slot 1, marked <b>COPIED</b>. The dashed square on the board shows where Trace will step.', spot: 'pred:1', ack: true },
+      { say: 'Now make any 3 moves. They fill slots 2 to 4, and Trace ignores them. Watch Trace on your 4th move.', expect: 'fire', spot: 'tape:1' },
+      { say: 'Trace stepped ' + arrHtml('RIGHT') + ' because that was the first of your 4 moves. The tape is empty again, so your next move is the new slot 1.', spot: 'echo:1', ack: true },
+      { say: 'Trace needs one more step right to reach the portal. Start the next group with ' + arrHtml('RIGHT') + ', then walk onto the portal yourself.', end: true },
+    ],
+    3: [
+      { say: 'Plates and doors come in matching colours. Plate <b>a</b> opens door <b>A</b>, but only while something stands on the plate.', spot: 'plate:A', ack: true },
+      { say: 'You cannot stand on the plate and walk through the door at the same time, so Trace has to hold the plate. Tap Plan if you get stuck.', spot: 'door:A', end: true },
+    ],
+    4: [
+      { say: 'This is a crate. Walk into it to push it. You can never pull it back, so think before you push.', spot: 'crate', ack: true },
+      { say: 'A crate on a plate holds its door open, just like an echo would.', spot: 'plate:A', end: true },
+    ],
+    5: [{ say: 'Coins fill your Luck meter: the ring on the Favour button. At 100, press Favour and your echoes act twice as often for a while.', spot: 'btn:Favour', end: true }],
+    6: [{ say: 'This green hexagon is <b>Keeper</b>. It never walks: every 3 moves it sends a helper to the nearest free plate.', spot: 'echo:1', end: true }],
+    7: [{ say: 'This orange square is <b>Mason</b>. When a group completes, it builds a block next to itself in the direction of the group\'s first move.', spot: 'echo:1', end: true }],
+    8: [{ say: 'The pink diamond is the <b>Blocker</b>. It marks a tile in red, counts down, then drops a block there.', spot: 'enemy', end: true }],
+    9: [{ say: 'The violet triangle is <b>Flicker</b>: it uses groups of 2, and it can hop. Press H (or Hop), then tap a green tile.', spot: 'btn:Hop', end: true }],
+    31: [{ say: 'Flicker is back. Groups of 2 mean your 1st, 3rd, 5th… moves all reach it. Watch its tape: only 2 slots.', spot: 'tape:1', end: true }],
+    41: [{ say: 'Mason never walks. A group starting with ' + arrHtml('DOWN') + ' makes it build on the plate below it.', spot: 'echo:1', end: true }],
+  };
+  function arrHtml(d) { return '<span class="arr h">' + ({ UP: '↑', RIGHT: '→', DOWN: '↓', LEFT: '←' })[d] + '</span>'; }
+  const tutStep = () => (G && G.tut ? G.tut.steps[G.tut.i] : null);
+  function tutAdvance(events, meta) {
+    const st = tutStep(); if (!st) return;
+    if (st.end) { G.tut = null; return; }
+    if (!st.expect) return;
+    const ok = st.expect === 'any' ? meta.kind === 'move'
+      : st.expect === 'fire' ? events.some((e) => e.type === 'ECHO_MOVED' || e.type === 'ECHO_BLOCKED')
+      : meta.dir === st.expect;
+    if (ok) nextTut();
+  }
+  function nextTut() { if (!G.tut) return; G.tut.i++; if (G.tut.i >= G.tut.steps.length) G.tut = null; SFX.click(); renderPanel(); flashCoach(); }
+  function spotEls(sp) {
+    if (!sp) return [];
+    const [k, v] = sp.split(':'), L = G.L;
+    if (k === 'echo' || k === 'pred') return [actorEls.get(k + v)];
+    if (k === 'tape') return [$('#echoCards .ecard[data-id="' + v + '"] .tape')];
+    if (k === 'plate' || k === 'door') {
+      const src = k === 'plate' ? L.plates : L.doors;
+      return Object.keys(src).filter((q) => src[q] === v).map((q) => { const [x, y] = q.split(',').map(Number); return tileEls[y][x]; });
+    }
+    if (k === 'crate') return [...actorEls.keys()].filter((q) => q.startsWith('push')).map((q) => actorEls.get(q));
+    if (k === 'enemy') return [actorEls.get('enemy')];
+    if (k === 'btn') return [$('#btn' + v)];
+    return [];
+  }
+
+  const PLATE_COLOR = { A: '#4fe3ff', B: '#ff9a5e', C: '#c49bff', D: '#6dffb3' };
   function buildBoard() {
     const L = G.L;
     board.innerHTML = ''; tileEls = []; actorEls = new Map();
@@ -172,9 +273,9 @@
         el.dataset.x = x; el.dataset.y = y;
         let cls = 'tile ' + (L.tiles[y][x] === '#' ? 'wall' : 'floor' + ((x + y) % 2 ? ' alt' : ''));
         let lbl = '';
-        if (L.plates[k]) { cls += ' plate'; lbl = L.plates[k].toLowerCase(); }
-        if (L.doors[k]) { cls = 'tile floor door'; lbl = L.doors[k]; }
-        if (AM.isExit(L, x, y)) cls += ' exit';
+        if (L.plates[k]) { cls += ' plate'; lbl = L.plates[k].toLowerCase(); el.style.setProperty('--pc', PLATE_COLOR[L.plates[k]]); }
+        if (L.doors[k]) { cls = 'tile floor door'; lbl = L.doors[k]; el.style.setProperty('--pc', PLATE_COLOR[L.doors[k]]); }
+        if (AM.isExit(L, x, y)) { cls += ' exit'; if (L.exitLock.length) { cls += ' powered'; lbl = L.exitLock[0].toLowerCase(); el.style.setProperty('--pc', PLATE_COLOR[L.exitLock[0]]); } }
         el.className = cls;
         if (lbl) el.innerHTML = '<span class="lbl">' + lbl + '</span>';
         board.appendChild(el); row.push(el);
@@ -184,13 +285,21 @@
     actorsEl = document.createElement('div'); actorsEl.className = 'actors'; board.appendChild(actorsEl);
   }
 
-  function fit() {
-    if (!G) return;
+  /* Tile size depends on width only on phones (the browser bar changes the height while you
+     scroll), so the board never jumps around mid-level. */
+  let fitKey = '';
+  function fit(force) {
+    if (!G) return false;
     const L = G.L, narrow = window.innerWidth <= 980;
-    const availW = $('#stage').clientWidth - 24;
-    const availH = narrow ? window.innerHeight * 0.58 : window.innerHeight - 240;
+    const availW = $('#stage').clientWidth - (narrow ? 14 : 24);
+    const screenH = Math.max(window.screen && window.screen.height ? window.screen.height : 0, 480);
+    const availH = narrow ? Math.round(screenH * 0.48) : window.innerHeight - 250;
+    const key = L.id + ':' + availW + ':' + availH;
+    if (!force && key === fitKey) return false;
+    fitKey = key;
     const ts = Math.max(24, Math.floor(Math.min(availW / L.w, availH / L.h, 66)));
     board.style.setProperty('--ts', ts + 'px');
+    return true;
   }
 
   /* ---------- keyed actor sync ---------- */
@@ -305,6 +414,7 @@
         const d = e.batch[i];
         slot.classList.toggle('filled', !!d);
         slot.classList.toggle('head', !!d && i === 0 && e.type !== 'keeper');
+        slot.classList.toggle('next', !d && i === 0 && e.batch.length === 0 && e.type !== 'keeper');
         if (d && slot.dataset.d !== d) { slot.innerHTML = ARROW(d); slot.dataset.d = d; }
         if (!d && slot.dataset.d) { slot.innerHTML = ''; delete slot.dataset.d; }
       });
@@ -355,12 +465,22 @@
     // feed
     $('#feed').innerHTML = G.log.slice(0, 6).map((l) => '<li class="' + l.c + '">' + l.h + '</li>').join('');
     // coach
-    $('#coachWhat').innerHTML = G.coach.h; $('#coachWhat').className = G.coach.c;
-    $('#coachNext').innerHTML = nextLines(S).map((l) => '<div class="ln" style="--c:' + (l.color || 'var(--cyan)') + '"><span>' + l.h + '</span></div>').join('');
-    $('#planText').textContent = G.def.plan || '';
-    $('#planText').hidden = !G.planOpen;
-    $('#planBtn').textContent = G.planOpen ? 'Hide plan' : 'Show plan';
-    $('#planBtn').setAttribute('aria-expanded', G.planOpen);
+    const st = tutStep();
+    $$('.spot').forEach((el) => el.classList.remove('spot'));
+    $('#coach').classList.toggle('tut', !!st);
+    if (st) {
+      $('#coachTag').textContent = 'TUTORIAL ' + (G.tut.i + 1) + ' / ' + G.tut.steps.length;
+      $('#coachWhat').innerHTML = st.say; $('#coachWhat').className = '';
+      $('#coachNext').innerHTML = st.ack ? '<div><button class="btn gold" id="tutNext">Next</button></div>'
+        : st.end ? nextLines(S).map((l) => '<div class="ln" style="--c:' + (l.color || 'var(--cyan)') + '"><span>' + l.h + '</span></div>').join('')
+        : '<div class="ln"><span>' + (st.expect === 'RIGHT' ? 'Waiting for ' + arrHtml('RIGHT') : st.expect === 'fire' ? 'Keep moving: Trace acts when the tape is full.' : 'Make any move.') + '</span></div>';
+      const nb = $('#tutNext'); if (nb) nb.onclick = nextTut;
+      spotEls(st.spot).forEach((el) => el && el.classList.add('spot'));
+    } else {
+      $('#coachTag').textContent = 'COACH';
+      $('#coachWhat').innerHTML = G.coach.h; $('#coachWhat').className = G.coach.c;
+      $('#coachNext').innerHTML = nextLines(S).map((l) => '<div class="ln" style="--c:' + (l.color || 'var(--cyan)') + '"><span>' + l.h + '</span></div>').join('');
+    }
   }
   /* ---------- coach: plain-language explanations of what happened and what comes next ---------- */
   const AR = { UP: '↑', RIGHT: '→', DOWN: '↓', LEFT: '←' };
@@ -507,6 +627,9 @@
   const busy = () => !$('#overlay').hidden || screen !== 'game' || !G;
   function move(dir) {
     if (busy() || G.S.status !== 'play') return;
+    const st = tutStep();
+    if (st && st.ack) { toast('Tap Next in the coach panel to continue.'); flashCoach(); return; }
+    if (st && /^(UP|RIGHT|DOWN|LEFT)$/.test(st.expect || '') && dir !== st.expect) { toast('For this step, press ' + ({ UP: '↑', RIGHT: '→', DOWN: '↓', LEFT: '←' })[st.expect] + '.'); flashCoach(); return; }
     if (G.hop) { G.hop = false; }
     const r = AM.step(G.L, G.S, dir);
     if (!r.accepted) { fxBlocked(dir); say([{ h: blockedText(dir, r.events), c: 'bad' }]); renderPanel(); flashCoach(); return; }
@@ -519,6 +642,7 @@
     if (G.undo.length > 400) G.undo.shift();
     G.S = next; G.hint = null;
     say(explain(prev, next, events, meta));
+    tutAdvance(events, meta);
     render();
     fx(prev, next, events, meta);
     if (next.status === 'won') setTimeout(victory, reduced() ? 50 : 650);
@@ -636,7 +760,7 @@
       if (p) anim(p.querySelector('.orb'), [{ transform: 'scale(1.2,.82)' }, { transform: 'scale(1)' }], { duration: 180, easing: 'cubic-bezier(.3,1.4,.5,1)' });
       if (!fired.size) {
         const maxC = Math.max(0, ...next.echoes.map((e) => e.counter));
-        if (next.echoes.length) SFX.tape(maxC - 1); else SFX.move();
+        if (maxC > 0) SFX.tape(maxC - 1); else SFX.move();
       }
     }
     for (const e of events) {
@@ -684,18 +808,19 @@
     persist();
     const last = G.idx === LEVELS.length - 1;
     openModal(
-      '<div class="rays"></div><div class="kicker">WORLD 1 · LEVEL ' + L.id + ' · ' + esc(L.name).toUpperCase() + '</div>' +
-      '<h2 class="win-title">' + (last ? 'WORLD CLEAR!' : 'LEVEL CLEAR!') + '</h2>' +
+      '<div class="rays"></div><div class="kicker">WORLD ' + G.def.world + ' · LEVEL ' + L.id + ' · ' + esc(L.name).toUpperCase() + '</div>' +
+      '<h2 class="win-title">' + (last ? 'ALL CLEAR!' : G.def.id % 10 === 0 ? 'WORLD CLEAR!' : 'LEVEL CLEAR!') + '</h2>' +
       '<div class="big-stars">' + [1, 2, 3].map((k) => '<svg class="' + (k <= receipt.stars ? 'lit' : '') + '" style="animation-delay:' + (0.2 + k * 0.18) + 's"><use href="#i-star"/></svg>').join('') + '</div>' +
       '<div class="stats-row"><span>Moves <b>' + S.moves + '</b>' + (L.par ? ' / par ' + L.par : '') + '</span><span>Best <b>' + receipt.best + '</b>' + (receipt.newBest && !receipt.first ? ' · new best!' : '') + '</span></div>' +
       '<div class="receipt">' + receipt.lines.map((r, i) => '<div class="r ' + r.tone + '" style="animation-delay:' + (0.5 + i * 0.12) + 's"><span>' + esc(r.label) + '</span><span>+' + r.value + '</span></div>').join('') +
       '<hr><div class="total"><span class="disp" style="font-size:22px">Total</span><b><i class="coin-ico"></i><span id="countUp">+0</span></b></div></div>' +
+      '<div class="note lesson"><svg><use href="#i-bulb"/></svg><span><b>You learned:</b> ' + esc(L.lesson || G.def.lesson) + '</span></div>' +
       '<div class="note"><svg><use href="#i-restart"/></svg><span>' + esc(receipt.next) + '</span></div>' +
-      (last ? '<p>You finished every level in World 1. More worlds are on the way.</p>' : '') +
+      (last ? '<p>You finished every level. More worlds are on the way.</p>' : '') +
       '<div class="row"><button class="btn" id="vMap"><svg><use href="#i-map"/></svg>Map</button><button class="btn" id="vReplay"><svg><use href="#i-restart"/></svg>Replay</button>' +
       (last ? '' : '<button class="btn gold big" id="vNext">Next level<svg><use href="#i-play"/></svg></button>') + '</div>',
       () => {
-        on('vMap', () => { mapSel = Math.min(G.idx + 1, LEVELS.length - 1); show('map'); });
+        on('vMap', () => { mapSel = Math.min(G.idx + 1, LEVELS.length - 1); mapWorld = LEVELS[mapSel].world; show('map'); });
         on('vReplay', () => startLevel(G.idx));
         on('vNext', () => startLevel(G.idx + 1));
         [1, 2, 3].forEach((k) => { if (k <= receipt.stars) setTimeout(() => SFX.star(k), (reduced() ? 0 : 350 + k * 180)); });
@@ -728,13 +853,13 @@
     SFX.lose(); buzz([60, 40, 60]);
     openModal('<div class="kicker">LEVEL ' + G.L.id + '</div><h2 class="lose-title">OUT OF MOVES</h2><p>' + esc(G.S.reason) + ' Undo a few moves or try a new line.</p>' +
       '<div class="row"><button class="btn" id="fMap"><svg><use href="#i-map"/></svg>Map</button><button class="btn" id="fUndo"><svg><use href="#i-undo"/></svg>Undo</button><button class="btn gold big" id="fRetry"><svg><use href="#i-restart"/></svg>Retry</button></div>',
-      () => { on('fMap', () => show('map')); on('fUndo', () => { closeModal(); undo(); }); on('fRetry', restart); });
+      () => { on('fMap', () => { mapSel = G.idx; mapWorld = G.def.world; show('map'); }); on('fUndo', () => { closeModal(); undo(); }); on('fRetry', restart); });
   }
   function pause() {
     openModal('<h2>Paused</h2><p>' + esc(G.def.name) + ' · ' + G.S.moves + ' moves so far</p>' +
       '<div class="row"><button class="btn gold big" id="pResume"><svg><use href="#i-play"/></svg>Resume</button></div>' +
       '<div class="row"><button class="btn" id="pRestart"><svg><use href="#i-restart"/></svg>Restart</button><button class="btn" id="pMap"><svg><use href="#i-map"/></svg>Level map</button><button class="btn" id="pHelp"><svg><use href="#i-help"/></svg>How to play</button><button class="btn" id="pSound"><svg><use href="#i-sound"/></svg>Sound ' + (prog.sound ? 'on' : 'off') + '</button></div>',
-      () => { on('pResume', closeModal); on('pRestart', restart); on('pMap', () => show('map')); on('pHelp', help); on('pSound', () => { prog.sound = !prog.sound; persist(); applySettings(); pause(); }); });
+      () => { on('pResume', closeModal); on('pRestart', restart); on('pMap', () => { mapSel = G.idx; mapWorld = G.def.world; show('map'); }); on('pHelp', help); on('pSound', () => { prog.sound = !prog.sound; persist(); applySettings(); pause(); }); });
   }
   function help() {
     const back = screen === 'game' ? '<button class="btn gold big" id="hOk">Back to the level</button>' : '<button class="btn gold big" id="hOk">Got it</button>';
@@ -777,6 +902,7 @@
     if (!$('#overlay').hidden) {
       if (k === 'Escape') { closeModal(); if (screen === 'game' && G && G.S.status !== 'play') { /* stay on result */ } }
       else if ((k === 'n' || k === 'Enter') && $('#vNext')) { ev.preventDefault(); startLevel(G.idx + 1); }
+      else if (k === 'Enter' && $('#lcGo')) { ev.preventDefault(); closeModal(); renderPanel(); }
       else if (k === 'r' && G && G.S.status === 'lost') restart();
       return;
     }
@@ -805,14 +931,21 @@
   $('#btnUndo').onclick = undo; $('#btnRestart').onclick = restart; $('#btnFavour').onclick = favour;
   $('#btnHop').onclick = toggleHop; $('#btnOracle').onclick = toggleOracle; $('#btnHint').onclick = hint;
   $('#btnPause').onclick = () => { SFX.click(); pause(); };
-  $('#planBtn').onclick = () => { if (G) { G.planOpen = !G.planOpen; SFX.click(); renderPanel(); } };
+  $('#planBtn').onclick = () => { if (G) { SFX.click(); planSheet(); } };
+  $('#mapPrev').onclick = () => switchWorld(-1); $('#mapNext').onclick = () => switchWorld(1);
   $('#stuckUndo').onclick = undo; $('#stuckRestart').onclick = restart;
   $('#tContinue').onclick = () => { SFX.click(); startLevel(P.nextLevelIndex(prog, LEVELS)); };
-  $$('[data-go]').forEach((b) => (b.onclick = () => { SFX.click(); if (b.dataset.go === 'map') mapSel = null; show(b.dataset.go); }));
+  $$('[data-go]').forEach((b) => (b.onclick = () => { SFX.click(); if (b.dataset.go === 'map') { mapSel = null; mapWorld = null; } show(b.dataset.go); }));
   $$('[data-open]').forEach((b) => (b.onclick = () => { SFX.click(); b.dataset.open === 'help' ? help() : settings(); }));
   $('#overlay').addEventListener('click', (e) => { if (e.target === $('#overlay') && G && G.S.status === 'play' && screen === 'game') closeModal(); });
   let rt = 0;
-  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (screen === 'game') { fit(); render(true); } }, 80); });
+  let lastW = window.innerWidth;
+  window.addEventListener('resize', () => {
+    // phones fire resize when the address bar shows/hides; only a width change needs a re-layout there
+    if (window.innerWidth <= 980 && window.innerWidth === lastW) return;
+    lastW = window.innerWidth;
+    clearTimeout(rt); rt = setTimeout(() => { if (screen === 'game' && fit()) render(true); }, 120);
+  });
 
   // boot
   applySettings();

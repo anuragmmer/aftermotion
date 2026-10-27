@@ -51,7 +51,7 @@
   </div>
   <div class="title-foot">
     <div class="pills"><span class="pill"><i class="coin-ico"></i><b class="coinCount">0</b></span><span class="pill"><svg class="star-ico"><use href="#i-star"/></svg><b id="tStarCount">0</b></span></div>
-    <span class="dim small">World 1 of 20 · more worlds coming</span>
+    <span class="dim small">6 worlds · 60 levels · more coming</span>
   </div>
 </section>
 
@@ -59,9 +59,14 @@
 <section id="map" class="screen" hidden>
   <header class="bar">
     <button class="icon-btn" data-go="title" aria-label="Home"><svg><use href="#i-back"/></svg></button>
-    <div class="bar-title"><small>WORLD 1 · LEVELS 1–10</small><b class="disp">First Light</b></div>
+    <div class="bar-title"><small id="mapKicker"></small><b class="disp" id="mapName"></b></div>
+    <div class="world-nav">
+      <button class="icon-btn" id="mapPrev" aria-label="Previous world"><svg><use href="#i-back"/></svg></button>
+      <button class="icon-btn" id="mapNext" aria-label="Next world"><svg style="transform:rotate(180deg)"><use href="#i-back"/></svg></button>
+    </div>
     <span class="pill"><i class="coin-ico"></i><b class="coinCount">0</b></span>
   </header>
+  <p class="map-blurb" id="mapBlurb"></p>
   <div class="map-body">
     <div class="map-area" id="mapArea">
       <svg class="map-path" viewBox="0 0 1000 620" preserveAspectRatio="none" aria-hidden="true"><path id="mapPathAll"/><path id="mapPathDone"/></svg>
@@ -101,10 +106,9 @@
       <div class="coach" id="coach" aria-live="polite">
         <div class="coach-ico" aria-hidden="true"><svg><use href="#i-bulb"/></svg></div>
         <div class="coach-body">
+          <div class="coach-head"><span class="coach-tag" id="coachTag">COACH</span><button class="plan-btn" id="planBtn">Plan</button></div>
           <b id="coachWhat"></b>
           <div id="coachNext"></div>
-          <div class="plan-row"><button class="plan-btn" id="planBtn" aria-expanded="false">Show plan</button></div>
-          <p class="plan" id="planText" hidden></p>
         </div>
       </div>
       <div class="stage" id="stage">

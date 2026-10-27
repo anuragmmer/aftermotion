@@ -159,5 +159,23 @@ t('Hints: one free per day, then cost coins; unlocks are sequential', () => {
   assert.ok(P.isUnlocked(prog, LEVELS, 0)); assert.ok(!P.isUnlocked(prog, LEVELS, 1));
   P.applyClear(prog, LEVELS[0], { moves: 99, collected: 0 }, 0); assert.ok(P.isUnlocked(prog, LEVELS, 1));
 });
-for (const def of LEVELS) t(`Level ${def.id} "${def.name}" is solvable`, () => { const r = solve(def, 1500000); assert.ok(!r.error, r.error); });
+function replay(def) {
+  let { level: L, state: S } = AM.loadLevel(def);
+  for (const tok of def.solution.match(/H\d+,\d+;|[URDLF]/g)) {
+    if (tok[0] === 'H') { const [x, y] = tok.slice(1, -1).split(',').map(Number); const r = AM.hop(L, S, S.echoes.find((e) => e.hop).id, x, y); assert.ok(r.ok, 'hop ' + tok); S = r.state; }
+    else if (tok === 'F') { const r = AM.activateFavour(L, S); assert.ok(r.ok, 'favour'); S = r.state; }
+    else { const r = AM.step(L, S, { U: 'UP', R: 'RIGHT', D: 'DOWN', L: 'LEFT' }[tok]); assert.ok(r.accepted, 'move ' + tok); S = r.state; }
+  }
+  return S;
+}
+for (const def of LEVELS) t(`Level ${def.id} "${def.name}": stored solution wins in par (${def.par}) moves`, () => {
+  const S = replay(def);
+  assert.strictEqual(S.status, 'won'); assert.strictEqual(S.moves, def.par);
+  assert.ok(def.lesson && def.intro && def.plan, 'level text');
+  const w = def.map[0].length; def.map.forEach((r) => assert.strictEqual(r.length, w));
+});
+t('Levels are numbered 1..N in order and grouped into worlds of 10', () => {
+  LEVELS.forEach((d, i) => { assert.strictEqual(d.id, i + 1); assert.strictEqual(d.world, Math.ceil(d.id / 10)); });
+  assert.ok(LEVELS.length >= 60); assert.strictEqual(LEVELS.WORLDS.length, Math.ceil(LEVELS.length / 10));
+});
 console.log(`\n${pass} passed`);

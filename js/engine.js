@@ -300,9 +300,10 @@
     if (!playerMove(L, S, dir, ev)) { S.stats.blocked++; return { state: S, accepted: false, events: ev }; }
     S.history.push(dir);
     S.moves++; S.tick++;
+    recompute(L, S); // plates/doors react to the player's new position before echoes act
     // 3: echoes accumulate batches; due actions resolve in stable id order
     for (const e of S.echoes) {
-      if (e.hopping) continue; // batch state preserved while hopping
+      if (e.hopping || e.inert) continue; // batch state preserved while hopping; inert echoes (tooling only) never act
       if (e.counter === 0) e.activeB = batchSize(e); // cadence sampled at batch start
       e.batch.push(dir); e.counter++;
       if (e.counter >= e.activeB) {
@@ -436,7 +437,19 @@
     if (a.k === 'favour') return activateFavour(L, S).state;
     return hop(L, S, a.id, a.x, a.y).state;
   }
-  function stateSig(L, S) { const c = clone(S); delete c.history; delete c.stats; delete c.tick; if (!L.maxMoves) delete c.moves; return JSON.stringify(c); }
+  /* Compact state key for search. Only what affects the future is included: an echo's batch is
+     reduced to its first entry plus counter (the selector never reads the rest), and push blocks
+     are interchangeable, so they are sorted. */
+  function stateSig(L, S) {
+    const e = S.echoes.map((q) => [q.x, q.y, q.batch[0] || '', q.counter, q.activeB, q.state[0], q.favour, q.cooldown, q.charges, q.hopping ? 1 : 0,
+      q.hop ? q.hop.charges + ':' + q.hop.hold + ':' + (q.hop.origin ? q.hop.origin.x + '.' + q.hop.origin.y : '') : ''].join(',')).join('|');
+    const b = S.blocks.map((k) => k.kind[0] + k.x + '.' + k.y + '.' + k.ttl).sort().join(';');
+    const c = S.coins.map((k) => k.x + '.' + k.y).join(';');
+    const h = S.helpers.map((k) => [k.owner, k.x, k.y, k.state[0], k.life, k.hold, k.target.x, k.target.y, k.fresh ? 1 : 0].join('.')).join(';');
+    const en = S.enemy ? [S.enemy.x, S.enemy.y, S.enemy.state[0], S.enemy.t, S.enemy.target ? S.enemy.target.x + '.' + S.enemy.target.y : ''].join('.') : '';
+    const o = Object.keys(S.open).map((k) => (S.open[k] ? 1 : 0)).join('');
+    return [S.player.x, S.player.y, e, b, c, h, en, o, S.luck, S.status, L.maxMoves ? S.moves : ''].join('/');
+  }
   /* Exhaustive BFS over the same transition code as the live game.
      Returns {result:'win'|'stuck'|'unknown', path, states}. 'stuck' is only reported when the
      whole reachable space was searched; hitting the state/time cap yields 'unknown'. */
@@ -445,21 +458,21 @@
     const t0 = Date.now();
     if (S0.status === 'won') return { result: 'win', path: [], states: 0 };
     if (S0.status === 'lost') return { result: 'stuck', states: 0 };
-    const seen = new Set([stateSig(L, S0)]);
-    let frontier = [{ S: S0, path: [] }], n = 0;
+    const seen = new Set([stateSig(L, S0)]), acts = [], parent = [];
+    const pathTo = (id) => { const p = []; for (let k = id; k >= 0; k = parent[k]) p.unshift(acts[k]); return p; };
+    let frontier = [{ S: S0, id: -1 }], n = 0;
     while (frontier.length) {
       const next = [];
-      for (const { S, path } of frontier) for (const a of legalActions(L, S)) {
-        const S2 = applyAction(L, S, a);
-        if (!S2) continue;
-        const p = path.concat([a]);
-        if (S2.status === 'won') return { result: 'win', path: p, states: n };
-        if (S2.status === 'lost') continue;
+      for (const node of frontier) for (const a of legalActions(L, node.S)) {
+        const S2 = applyAction(L, node.S, a);
+        if (!S2 || S2.status === 'lost') continue;
+        if (S2.status === 'won') { acts.push(a); parent.push(node.id); return { result: 'win', path: pathTo(acts.length - 1), states: n }; }
         const sg = stateSig(L, S2);
         if (seen.has(sg)) continue;
         seen.add(sg);
         if (++n > cap || (n % 256 === 0 && Date.now() - t0 > ms)) return { result: 'unknown', states: n };
-        next.push({ S: S2, path: p });
+        acts.push(a); parent.push(node.id);
+        next.push({ S: S2, id: acts.length - 1 });
       }
       frontier = next;
     }

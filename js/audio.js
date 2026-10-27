@@ -35,7 +35,7 @@
   const SFX = {
     setEnabled(v) { enabled = v; },
     move() { tone(300, 0.07, 'triangle', 0.18, 0, 380); },
-    tape(i) { tone(TAPE[Math.min(i, TAPE.length - 1)], 0.09, 'square', 0.06); },
+    tape(i) { tone(TAPE[Math.max(0, Math.min(i, TAPE.length - 1))], 0.09, 'square', 0.06); },
     fire() { tone(660, 0.12, 'triangle', 0.22); tone(990, 0.18, 'sine', 0.18, 0.06); tone(1320, 0.22, 'sine', 0.1, 0.12); },
     echoBlocked() { tone(220, 0.12, 'sawtooth', 0.08, 0, 160); },
     blocked() { tone(110, 0.14, 'sine', 0.4, 0, 70); noise(0.06, 0.15, 400, 200); },
