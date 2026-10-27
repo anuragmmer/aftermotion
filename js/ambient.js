@@ -63,9 +63,10 @@
     neon: (x, y) => ({ k: 'spark', x, y, vx: rnd(-2, 2), vy: rnd(-2.4, 0.4), life: 45, c: pick(['#ff5cf0', '#4fe3ff']), s: rnd(1.5, 3), glow: 1 }),
     implode: (x, y) => { const a = rnd(0, 6.28), d = rnd(30, 60); return { k: 'spark', x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, vx: -Math.cos(a) * d / 30, vy: -Math.sin(a) * d / 30, life: 30, c: '#b06bff', s: rnd(1.5, 3), glow: 1 }; },
   };
-  A.burst = function (kind, x, y, n) {
+  /* color (optional) tints most particles, so palette trails burst in their own colour. */
+  A.burst = function (kind, x, y, n, color) {
     if (!ctx || !BURST[kind]) return;
-    for (let i = 0; i < (n || 12); i++) { const p = BURST[kind](x, y); p.max = p.life; fx.push(p); }
+    for (let i = 0; i < (n || 12); i++) { const p = BURST[kind](x, y); p.max = p.life; if (color && i % 3) p.c = color; fx.push(p); }
     kick();
   };
   function jag(x1, y1, x2, y2, rough) {

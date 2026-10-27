@@ -1,9 +1,9 @@
 /* Aftermotion unlocks: cosmetics (echo faces, orbs, trails, portals), boosts and milestone rewards.
  * Pure rules over the save data from progress.js; no DOM. */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./characters.js'));
-  else root.AMShop = factory(root.AMChars);
-})(typeof self !== 'undefined' ? self : this, function (Chars) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./characters.js'), require('./cosmetics.js'));
+  else root.AMShop = factory(root.AMChars, root.AMCosmetics);
+})(typeof self !== 'undefined' ? self : this, function (Chars, Cos) {
   'use strict';
 
   const SLOTS = ['face', 'orb', 'trail', 'portal'];
@@ -67,7 +67,57 @@
   // Every character in the roster is a face item (the kind of echo is still shown by its badge).
   const BLURB = { common: 'A cheerful everyday echo.', rare: 'A rare echo with real personality.', epic: 'An epic echo. Turns heads.', legendary: 'Legendary. Few players ever see one.' };
   Chars.ROSTER.forEach((ch) => CATALOG.splice(1 + Chars.ROSTER.indexOf(ch), 0, Object.assign({ slot: 'face', desc: ch.aura ? Chars.AURAS[ch.aura].desc : BLURB[ch.rarity] }, { id: ch.id, name: ch.name, rarity: ch.rarity, price: ch.price, milestone: ch.milestone, char: ch, aura: ch.aura })));
+  // Generated orbs, trails and portals (50+ per category together with the hand-made ones).
+  [Cos.ORBS, Cos.TRAILS, Cos.PORTALS].forEach((list) => list.forEach((it) => CATALOG.push(it)));
+
+  /* ---------- pricing ---------- */
+  // Rares and epics cost more than before so legendaries keep their place at the top.
+  const round50 = (n) => Math.round(n / 50) * 50;
+  CATALOG.forEach((it) => {
+    if (!it.price || it.gen || it.slot === 'boost') return;
+    if (it.rarity === 'rare' && it.slot === 'face') it.price = round50(it.price * 1.5);
+    if (it.rarity === 'epic') it.price = round50(it.price * 2.5);
+  });
+  /* Legendary items: meet the requirement to qualify, then pay a very high price. */
+  const LEGEND = {
+    neonking: [{ stars: 200 }, 90000], stormcaller: [{ stars: 150 }, 60000], thunderskull: [{ stars: 120 }, 45000],
+    phoenix: [{ perfect: 40 }, 55000], dragonemperor: [{ worlds: 8 }, 80000], frostbite: [{ gentle: 30 }, 50000],
+    cosmo: [{ stars: 100 }, 40000], glitchcat: [{ chests: 40 }, 50000], kitsune: [{ streak: 14 }, 75000],
+    sakura: [{ echoSteps: 3000 }, 35000], midnightdj: [{ spins: 60 }, 45000],
+    stormorb: [{ stars: 120 }, 50000], sunorb: [{ perfect: 30 }, 40000], galaxyorb: [{ stars: 90 }, 35000],
+    frostorb: [{ gentle: 20 }, 30000], prismorb: [{ collection: 60 }, 45000],
+    lightning: [{ echoSteps: 5000 }, 55000], starfall: [{ stars: 100 }, 40000], inferno: [{ perfect: 50 }, 45000], matrixtrail: [{ chests: 30 }, 35000],
+    stormgate: [{ worlds: 7 }, 60000], infernogate: [{ perfect: 60 }, 50000], starfield: [{ stars: 130 }, 45000],
+    frostgate: [{ gentle: 40 }, 40000], cosmiceye: [{ achievements: 20 }, 70000],
+  };
+  Object.keys(LEGEND).forEach((id) => { const it = CATALOG.find((c) => c.id === id); if (it) { it.gate = LEGEND[id][0]; it.price = LEGEND[id][1]; } });
+
   const byId = (id) => CATALOG.find((c) => c.id === id);
+
+  /* ---------- player stats used by gates, quests and achievements ---------- */
+  const GATE_TEXT = {
+    stars: (n) => 'Earn ' + n + ' stars', perfect: (n) => 'Finish ' + n + ' levels at par (3 stars)', gentle: (n) => 'Clear ' + n + ' levels with no echo bumps',
+    echoSteps: (n) => 'Make your echoes take ' + n.toLocaleString('en-US') + ' steps', chests: (n) => 'Open ' + n + ' chests', spins: (n) => 'Spin the wheel ' + n + ' times',
+    streak: (n) => 'Reach a ' + n + '-day Daily Echo streak', worlds: (n) => 'Clear ' + n + ' worlds', collection: (n) => 'Own ' + n + ' cosmetics',
+    achievements: (n) => 'Claim ' + n + ' achievement tiers',
+  };
+  function statValue(prog, levels, key) {
+    const st = prog.stats || {}, L = prog.levels || {};
+    switch (key) {
+      case 'stars': return Object.values(L).reduce((a, r) => a + (r.stars || 0), 0);
+      case 'perfect': return Object.values(L).filter((r) => r.stars === 3).length;
+      case 'worlds': { const ws = [...new Set(levels.map((l) => l.world))]; return ws.filter((w) => worldCleared(prog, levels, w)).length; }
+      case 'collection': return CATALOG.filter((c) => c.slot !== 'boost' && !c.default && (prog.owned || {})[c.id]).length;
+      case 'streak': return Math.max(prog.bestStreak || 0, (prog.daily && prog.daily.streak) || 0);
+      case 'achievements': return Object.values(prog.ach || {}).reduce((a, n) => a + n, 0);
+      default: return st[key] || 0;
+    }
+  }
+  function gateStatus(prog, levels, gate) {
+    if (!gate) return { met: true };
+    const key = Object.keys(gate)[0], need = gate[key], have = statValue(prog, levels, key);
+    return { met: have >= need, key, need, have, text: GATE_TEXT[key](need), progress: Math.min(1, have / need) };
+  }
 
   function init(prog) {
     prog.owned = prog.owned || {};
@@ -95,6 +145,8 @@
     init(prog);
     const item = byId(id);
     if (!item || !item.price) return { ok: false, reason: 'Not for sale.' };
+    const g = gateStatus(prog, levels, item.gate);
+    if (!g.met) return { ok: false, reason: 'Locked: ' + g.text + ' (you have ' + g.have.toLocaleString('en-US') + ').' };
     if (item.slot !== 'boost' && owns(prog, levels, item)) return { ok: false, reason: 'Already yours.' };
     if (prog.coins < item.price) return { ok: false, reason: 'You need ' + (item.price - prog.coins) + ' more coins.' };
     prog.coins -= item.price;
@@ -120,7 +172,7 @@
   /* The thing to look forward to: cheapest cosmetic still to buy, else the nearest milestone. */
   function nextGoal(prog, levels) {
     init(prog);
-    const forSale = CATALOG.filter((c) => c.price && c.slot !== 'boost' && !owns(prog, levels, c)).sort((a, b) => a.price - b.price);
+    const forSale = CATALOG.filter((c) => c.price && c.slot !== 'boost' && !c.gate && !owns(prog, levels, c)).sort((a, b) => a.price - b.price);
     if (forSale.length) { const it = forSale[0]; return { item: it, text: prog.coins >= it.price ? 'You can buy ' + it.name + ' now!' : (it.price - prog.coins) + ' coins to ' + it.name, ready: prog.coins >= it.price }; }
     const ms = CATALOG.find((c) => c.milestone && !owns(prog, levels, c));
     return ms ? { item: ms, text: milestoneText(ms) + ' to unlock ' + ms.name, ready: false } : null;
@@ -133,5 +185,5 @@
     return null;
   }
 
-  return { activeAura, AURAS: Chars.AURAS, SLOTS, DEFAULTS, CATALOG, byId, init, owns, milestoneMet, milestoneText, worldCleared, buy, equip, useBoost, newUnlocks, nextGoal };
+  return { statValue, gateStatus, GATE_TEXT, activeAura, AURAS: Chars.AURAS, SLOTS, DEFAULTS, CATALOG, byId, init, owns, milestoneMet, milestoneText, worldCleared, buy, equip, useBoost, newUnlocks, nextGoal };
 });

@@ -15,6 +15,8 @@
     lifetimeReplays: 10,
     regenMs: 8 * 3600 * 1000,
     hintCost: 30,
+    practicePay: 5,          // replays never pay nothing: 5 coins at 2+ stars once paid replays run out
+    practiceMax: 20,         // ... up to 20 times a day
   };
 
   const baseReward = (level) => 20 + 6 * (level.id - 1);
@@ -55,8 +57,14 @@
       if (result.collected) add('Coins collected', result.collected * RULES.coinValue);
     } else {
       if (stars > rec.stars) add('Star upgrade', Math.round(base * (RULES.starMult[stars] - RULES.starMult[rec.stars])), 'gold');
-      if (rec.life >= RULES.lifetimeReplays) add('Replay reward (lifetime cap reached)', 0, 'dim');
-      else if (rec.k >= RULES.paidReplays) add('Replay reward (recharging)', 0, 'dim');
+      const practice = (why) => {
+        const day = new Date(now || 0).toISOString().slice(0, 10);
+        if (!prog.practice || prog.practice.day !== day) prog.practice = { day, n: 0 };
+        if (stars >= 2 && prog.practice.n < RULES.practiceMax) { prog.practice.n++; add('Practice pay (' + why + ')', RULES.practicePay, 'dim'); }
+        else add('Replay reward (' + why + ')', 0, 'dim');
+      };
+      if (rec.life >= RULES.lifetimeReplays) practice('lifetime cap reached');
+      else if (rec.k >= RULES.paidReplays) practice('recharging');
       else if (stars < 2) add('Replay reward (needs ★★)', 0, 'dim');
       else {
         const pct = Math.pow(RULES.replayDecay, rec.k + 1);

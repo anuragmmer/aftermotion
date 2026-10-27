@@ -137,11 +137,11 @@ t('Rewards: replays decay 50/25/12.5%, cap at 3, regenerate after 8h, lifetime c
   const prog = P.defaults(), lv = { id: 1, par: 8 }, H = 3600 * 1000;
   P.applyClear(prog, lv, { moves: 8, collected: 0, usedHint: true }, 0);
   const pay = (t) => P.applyClear(prog, lv, { moves: 8, collected: 0 }, t).total;
-  assert.deepStrictEqual([pay(1), pay(2), pay(3), pay(4)], [15, 8, 4, 0]);
+  assert.deepStrictEqual([pay(1), pay(2), pay(3), pay(4)], [15, 8, 4, P.RULES.practicePay], 'capped replays fall back to practice pay');
   assert.strictEqual(pay(3 + 8 * H), 4); // one step regenerated
   for (let i = 0; i < 20; i++) pay(100 * H * (i + 1));
   assert.strictEqual(prog.levels[1].life, 10);
-  assert.strictEqual(pay(1e13), 0);
+  assert.strictEqual(pay(1e13), P.RULES.practicePay);
 });
 t('Rewards: star upgrade on replay pays the difference once; ★1 replays pay nothing', () => {
   const prog = P.defaults(), lv = { id: 1, par: 8 };
@@ -218,6 +218,62 @@ t('Catalog: unique ids, valid auras, legendaries everywhere, active aura follows
   assert.strictEqual(Shop.activeAura(prog), null);
   prog.owned.lightning = true; Shop.equip(prog, LEVELS, 'lightning'); assert.strictEqual(Shop.activeAura(prog), 'storm');
   prog.owned.phoenix = true; Shop.equip(prog, LEVELS, 'phoenix'); assert.strictEqual(Shop.activeAura(prog), 'inferno', 'character aura wins');
+});
+const R = require('../js/rewards.js');
+const seq = (...xs) => { let i = 0; return () => xs[i++ % xs.length]; };
+t('Luck: echo steps and coins fill it, bumps drain it, gentle clears add a bonus, Favour spends 100', () => {
+  const prog = R.init(P.defaults());
+  R.addLuck(prog, R.luckFromEvents([{ type: 'ECHO_MOVED', text: '' }, { type: 'ECHO_MOVED', text: '' }, { type: 'LUCK', text: '' }]));
+  assert.strictEqual(prog.luck, 9);
+  R.addLuck(prog, R.luckFromEvents([{ type: 'ECHO_BLOCKED', text: 'Echo tries UP: blocked by wall.' }]));
+  assert.strictEqual(prog.luck, 4);
+  R.addLuck(prog, -50); assert.strictEqual(prog.luck, 0);
+  R.addLuck(prog, 500); assert.strictEqual(prog.luck, 100); assert.ok(R.luckFull(prog));
+  assert.ok(R.spendLuck(prog)); assert.strictEqual(prog.luck, 0); assert.ok(!R.spendLuck(prog));
+});
+t('Quests: 3 per day (one per band), deterministic, progress, claim, all-done bonus', () => {
+  const prog = R.init(P.defaults()), day = '2026-11-02';
+  const q = R.ensureQuests(prog, day);
+  assert.deepStrictEqual(q.list.map((x) => R.qById(x.id).band), [0, 1, 2]);
+  assert.deepStrictEqual(R.init(P.defaults()) && R.ensureQuests(R.init(P.defaults()), day).list.map((x) => x.id), q.list.map((x) => x.id));
+  for (const x of q.list) { const d = R.qById(x.id); R.questEvent(prog, day, d.ev, d.goal); }
+  const c0 = prog.coins, spins0 = prog.wheel.spins;
+  q.list.forEach((x) => assert.ok(R.claimQuest(prog, day, x.id)));
+  assert.ok(prog.coins > c0); assert.strictEqual(prog.wheel.spins, spins0 + 1); assert.ok(prog.chestQueue.some((c) => c.source === 'All daily quests'));
+  assert.strictEqual(R.claimQuest(prog, day, q.list[0].id), null, 'no double claim');
+});
+t('Chests: tiers pay within their ranges, never drop legendaries, duplicates convert to coins', () => {
+  const prog = R.init(P.defaults());
+  ['bronze', 'silver', 'gold', 'mythic'].forEach((tier) => R.grantChest(prog, tier, 'test'));
+  const out = [0, 1, 2, 3].map(() => R.openChest(prog, LEVELS, seq(0.01, 0.5, 0.99)));
+  out.forEach((o) => { const T = R.CHESTS[o.tier]; assert.ok(o.coins >= T.coins[0] && o.coins <= T.coins[1]); if (o.item) assert.notStrictEqual(o.item.rarity, 'legendary'); });
+  assert.ok(out[3].item, 'mythic always has a cosmetic'); assert.strictEqual(prog.stats.chests, 4);
+  assert.strictEqual(R.openChest(prog, LEVELS), null);
+});
+t('Wheel: one free spin a day, banked spins capped, pity guarantees a chest after 4 dry spins', () => {
+  const prog = R.init(P.defaults()), day = '2026-11-02';
+  assert.strictEqual(R.spinsAvailable(prog, day), 1);
+  assert.strictEqual(R.spin(prog, day, () => 0).seg.n, 60);
+  assert.strictEqual(R.spinsAvailable(prog, day), 0); assert.strictEqual(R.spin(prog, day), null);
+  R.addSpins(prog, 99); assert.strictEqual(prog.wheel.spins, R.MAX_SPINS);
+  for (let i = 0; i < 3; i++) R.spin(prog, day, () => 0);
+  const p = R.spin(prog, day, () => 0); assert.ok(p.pity); assert.strictEqual(p.seg.k, 'chest');
+});
+t('Achievements: claim tiers in order with coins + chest; legendary gates use the same stats', () => {
+  const prog = R.init(P.defaults());
+  LEVELS.slice(0, 4).forEach((l) => P.applyClear(prog, l, { moves: l.par, collected: 0 }, 0));
+  const s = R.achState(prog, LEVELS, R.ACH[0]); assert.ok(s.claimable);
+  const r = R.claimAch(prog, LEVELS, 'stargazer'); assert.strictEqual(r.coins, 150); assert.strictEqual(prog.ach.stargazer, 1);
+  assert.ok(!R.achState(prog, LEVELS, R.ACH[0]).claimable);
+  const g = Shop.gateStatus(prog, LEVELS, Shop.byId('stormcaller').gate); assert.ok(!g.met); assert.strictEqual(g.have, 12);
+  prog.coins = 1e9; assert.ok(!Shop.buy(prog, LEVELS, 'stormcaller').ok, 'gate blocks even with coins');
+});
+t('Clears: every 3rd new level and boss levels grant chests; stars every 10 grant silver', () => {
+  const prog = R.init(P.defaults()); const got = [];
+  for (const l of LEVELS.slice(0, 10)) { const rc = P.applyClear(prog, l, { moves: l.par, collected: 0 }, 0); got.push(...R.onClear(prog, LEVELS, { level: l, stars: rc.stars, perfect: true, bumps: 0, hasEchoes: true, first: true, coinsTotal: rc.total }, '2026-11-02').chests); }
+  assert.strictEqual(got.filter((c) => c === 'bronze').length, 3);
+  assert.ok(got.includes('gold') && got.includes('mythic'));
+  assert.strictEqual(got.filter((c) => c === 'silver').length, 3 + 1, '30 stars -> 3 silver, boss at par -> 1');
 });
 t('Boosted runs cap at 2 stars; skip tickets unlock the next level without stars', () => {
   const prog = P.defaults();

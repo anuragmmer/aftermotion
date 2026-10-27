@@ -12,6 +12,8 @@ html,body{margin:0;height:100%}
 body{background:var(--bg);background-image:linear-gradient(#ffffff06 1px,transparent 1px),linear-gradient(90deg,#ffffff06 1px,transparent 1px);background-size:40px 40px;color:var(--ink);font:700 15px/1.4 Nunito,system-ui,sans-serif;overflow-x:hidden;-webkit-tap-highlight-color:transparent}
 button{font:inherit;color:inherit;cursor:pointer}
 svg{width:20px;height:20px;flex-shrink:0}
+svg.sprite{position:absolute;width:0!important;height:0!important;overflow:hidden;pointer-events:none}
+body{padding-top:env(safe-area-inset-top,0px)}
 .disp{font-family:var(--disp);letter-spacing:.02em;font-weight:400}
 .dim{color:var(--dim)}.small{font-size:13px}
 [hidden]{display:none!important}
@@ -697,3 +699,37 @@ body[data-aura=aurora] .board-frame{box-shadow:inset 0 4px 0 var(--wallHi),inset
 .tile .peye{display:none}
 .tile.exit.p-cosmiceye .peye{display:block;position:absolute;inset:38%;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff 0 12%,#000 16% 45%,#6a3bd6 48%,#b06bff 70%);transform:translate(var(--ex,0px),var(--ey,0px));transition:transform .3s;z-index:1}
 .tile.exit.p-cosmiceye.locked .peye{display:none}
+
+/* ---------- generated cosmetics (js/cosmetics.js): palette vars --c1 main, --c2 light, --c3 dark ---------- */
+.orb.og{background:radial-gradient(circle at 35% 30%,#fff,var(--c2) 32%,var(--c1) 68%,var(--c3));box-shadow:0 0 22px var(--c1),0 5px 0 var(--c3)}
+.orb.og-glass{background:radial-gradient(circle at 35% 30%,#fff 0 8%,color-mix(in srgb,var(--c2) 70%,transparent) 30%,color-mix(in srgb,var(--c1) 45%,transparent) 70%);box-shadow:0 0 18px var(--c1),inset 0 0 0 3px color-mix(in srgb,var(--c2) 80%,transparent)}
+.orb.og-split{background:radial-gradient(circle at 35% 30%,#ffffffcc,transparent 30%),linear-gradient(135deg,var(--c1) 50%,var(--c3) 50%)}
+.orb.og-dotted{background:radial-gradient(circle at 30% 60%,var(--c2) 0 9%,transparent 10%),radial-gradient(circle at 65% 35%,var(--c2) 0 7%,transparent 8%),radial-gradient(circle at 62% 72%,var(--c2) 0 6%,transparent 7%),radial-gradient(circle at 35% 30%,#fff,var(--c1) 50%,var(--c3))}
+.orb.og-banded{background:radial-gradient(circle at 35% 30%,#ffffffaa,transparent 35%),repeating-linear-gradient(160deg,var(--c1) 0 18%,var(--c3) 18% 26%,var(--c2) 26% 34%)}
+.orb.og-pulse{animation:ogPulse 1.4s ease-in-out infinite}
+@keyframes ogPulse{50%{box-shadow:0 0 38px 6px var(--c1),0 5px 0 var(--c3);filter:brightness(1.18)}}
+.orb.og-swirl{background:radial-gradient(circle at 35% 30%,#ffffffcc,transparent 30%),conic-gradient(var(--c1),var(--c2),var(--c3),var(--c1),var(--c2),var(--c3),var(--c1));animation:spin 4s linear infinite}
+.orb.og-ringed::before{content:'';position:absolute;inset:-24% -38%;border-radius:50%;border:3px solid var(--c2);transform:rotate(-22deg) scaleY(.32);box-shadow:0 0 10px var(--c1)}
+.orb.og-ringed{animation:ogTilt 3s ease-in-out infinite}
+@keyframes ogTilt{50%{rotate:12deg}}
+.trail .dot.tg{background:var(--c1);box-shadow:0 0 10px var(--c1)}
+.dot.tg-square{border-radius:3px!important}
+.dot.tg-ring{background:transparent!important;border:3px solid var(--c1)}
+.dot.tg-cross{border-radius:0!important;clip-path:polygon(35% 0,65% 0,65% 35%,100% 35%,100% 65%,65% 65%,65% 100%,35% 100%,35% 65%,0 65%,0 35%,35% 35%);inset:28%!important}
+.dot.tg-star{border-radius:0!important;clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);inset:26%!important}
+.dot.tg-heart{border-radius:0!important;clip-path:polygon(50% 95%,12% 58%,2% 35%,10% 14%,28% 6%,44% 14%,50% 26%,56% 14%,72% 6%,90% 14%,98% 35%,88% 58%);inset:26%!important}
+.dot.tg-diamond{border-radius:0!important;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);inset:28%!important}
+.dot.tg-drop{border-radius:50% 0 50% 50%!important;transform:rotate(-45deg)}
+.dot.tg-moon{background:transparent!important;box-shadow:inset 6px -3px 0 0 var(--c1)!important;inset:28%!important}
+.dot.tg-note{border-radius:0!important;clip-path:polygon(55% 0,85% 10%,85% 28%,65% 22%,65% 78%,55% 92%,30% 100%,12% 85%,20% 66%,45% 62%,55% 66%);inset:24%!important}
+.dot.tg-flower{border-radius:0!important;background:radial-gradient(circle,var(--c2) 0 18%,transparent 20%),radial-gradient(circle at 50% 18%,var(--c1) 0 20%,transparent 22%),radial-gradient(circle at 82% 42%,var(--c1) 0 20%,transparent 22%),radial-gradient(circle at 70% 80%,var(--c1) 0 20%,transparent 22%),radial-gradient(circle at 30% 80%,var(--c1) 0 20%,transparent 22%),radial-gradient(circle at 18% 42%,var(--c1) 0 20%,transparent 22%)!important;box-shadow:none!important;inset:20%!important}
+.dot.tg-bolt{border-radius:0!important;clip-path:polygon(55% 0,15% 55%,45% 55%,35% 100%,85% 40%,55% 40%,70% 0);inset:22%!important}
+.tile.exit.pg:not(.locked)::before{background:conic-gradient(var(--c1),var(--c2),var(--c3),var(--c1));box-shadow:0 0 26px color-mix(in srgb,var(--c1) 60%,transparent)}
+.tile.exit.pg-split:not(.locked)::before{background:conic-gradient(var(--c1) 0 50%,var(--c3) 50% 100%)}
+.tile.exit.pg-stripes:not(.locked)::before{background:repeating-conic-gradient(var(--c1) 0 30deg,var(--c2) 30deg 60deg)}
+.tile.exit.pg-rings:not(.locked)::before{background:repeating-radial-gradient(circle,var(--c1) 0 8%,var(--c3) 8% 16%);animation:ogRipple 1.6s linear infinite}
+@keyframes ogRipple{to{background-size:120% 120%;filter:hue-rotate(10deg) brightness(1.15)}}
+.tile.exit.pg-spiral:not(.locked)::before{background:repeating-conic-gradient(from 0deg,var(--c1) 0 20deg,var(--c3) 20deg 40deg,var(--c2) 40deg 60deg);animation-duration:1s}
+.tile.exit.pg-nebula:not(.locked)::before{background:radial-gradient(circle at 30% 30%,#fff 0 3%,transparent 5%),radial-gradient(circle at 70% 60%,#fff 0 2%,transparent 4%),radial-gradient(circle at 40% 70%,var(--c2),transparent 50%),conic-gradient(var(--c3),var(--c1),var(--c3),var(--c2),var(--c3));animation-duration:6s}
+.tile.exit.pg-pulse:not(.locked)::before{animation:spin 2.4s linear infinite,ogHalo 1.3s ease-in-out infinite}
+@keyframes ogHalo{50%{box-shadow:0 0 44px 8px var(--c1)}}

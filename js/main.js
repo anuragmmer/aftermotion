@@ -2,7 +2,7 @@
  * Rules live in engine.js, rewards in progress.js; this file only presents state and sends commands. */
 (function () {
   'use strict';
-  const AM = window.AM, LEVELS = window.AMLevels, P = window.AMProgress, SFX = window.AMAudio, Shop = window.AMShop, Chars = window.AMChars, Amb = window.AMAmbient;
+  const AM = window.AM, LEVELS = window.AMLevels, P = window.AMProgress, SFX = window.AMAudio, Shop = window.AMShop, Chars = window.AMChars, Amb = window.AMAmbient, Cos = window.AMCosmetics, R = window.AMRewards;
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
   const ROT = { UP: 0, RIGHT: 90, DOWN: 180, LEFT: 270 };
@@ -53,6 +53,18 @@
     inferno: { color: '#ff5a2e', burst: 'flames' }, matrixtrail: { color: '#39ff8a', burst: 'code' },
   };
   const AURA_BURST = { inferno: 'embers', frost: 'snow', cosmos: 'stars', matrix: 'code', aurora: 'sparks', sakura: 'petals', synth: 'neon', gold: 'comet', void: 'implode' };
+  /* Cosmetic markup: hand-made items use their own class; generated ones (cosmetics.js) use a
+     style class plus palette variables. */
+  const genOf = (id) => { const it = Shop.byId(id); return it && it.gen ? it.gen : null; };
+  const orbHTML = (id) => { const g = genOf(id); return g ? '<div class="orb og og-' + g.style + '" style="' + Cos.vars(g) + '"></div>' : '<div class="orb o-' + id + '"></div>'; };
+  const dotHTML = (id, tag, extra) => { tag = tag || 'div'; const g = genOf(id); return g ? '<' + tag + ' class="dot tg tg-' + g.style + '" style="' + Cos.vars(g) + (extra || '') + '"></' + tag + '>' : '<' + tag + ' class="dot t-' + id + '"' + (extra ? ' style="' + extra + '"' : '') + '></' + tag + '>'; };
+  function portalClass(el, id) {
+    const g = genOf(id);
+    if (!g) return ' p-' + id;
+    el.style.setProperty('--c1', g.c1); el.style.setProperty('--c2', g.c2); el.style.setProperty('--c3', g.c3);
+    return ' pg pg-' + g.style;
+  }
+  const trailOf = (id) => { const it = Shop.byId(id); return it && it.gen ? { color: it.gen.c1, burst: it.burst, burstColor: it.gen.c1 } : TRAILS[id] || {}; };
   const center = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
 
   /* ================= screens ================= */
@@ -338,7 +350,7 @@
         let lbl = '';
         if (L.plates[k]) { cls += ' plate'; lbl = L.plates[k].toLowerCase(); el.style.setProperty('--pc', PLATE_COLOR[L.plates[k]]); }
         if (L.doors[k]) { cls = 'tile floor door'; lbl = L.doors[k]; el.style.setProperty('--pc', PLATE_COLOR[L.doors[k]]); }
-        if (AM.isExit(L, x, y)) { cls += ' exit p-' + prog.equip.portal; lbl = lbl || ''; if (L.exitLock.length) { cls += ' powered'; lbl = L.exitLock[0].toLowerCase(); el.style.setProperty('--pc', PLATE_COLOR[L.exitLock[0]]); } }
+        if (AM.isExit(L, x, y)) { cls += ' exit' + portalClass(el, prog.equip.portal); lbl = lbl || ''; if (L.exitLock.length) { cls += ' powered'; lbl = L.exitLock[0].toLowerCase(); el.style.setProperty('--pc', PLATE_COLOR[L.exitLock[0]]); } }
         el.className = cls;
         if (lbl) el.innerHTML = '<span class="lbl">' + lbl + '</span>';
         if (AM.isExit(L, x, y)) el.insertAdjacentHTML('beforeend', '<span class="peye"></span>');
@@ -429,7 +441,7 @@
       if (en.state === 'TELEGRAPH' && en.target) actor('tele', 'tele', '<div class="ret"></div><b></b>', en.target.x, en.target.y, seen).querySelector('b').textContent = en.t;
     }
     for (const h of S.helpers) actor('helper' + h.id, 'helper', '<div class="dia"></div><b></b>', h.x, h.y, seen).querySelector('b').textContent = h.state === 'PERFORM' ? h.hold : h.life;
-    G.trail.forEach((p, i) => { const el = actor('trail' + i, 'trail', '<div class="dot t-' + prog.equip.trail + '"></div>', p.x, p.y, seen); el.style.opacity = 0.32 - i * 0.1; el.firstChild.style.transform = 'scale(' + (1 - i * 0.22) + ')'; });
+    G.trail.forEach((p, i) => { const el = actor('trail' + i, 'trail', dotHTML(prog.equip.trail), p.x, p.y, seen); el.style.opacity = 0.32 - i * 0.1; el.firstChild.style.transform = 'scale(' + (1 - i * 0.22) + ')'; });
     for (const e of S.echoes) {
       if (e.hopping && e.hop.origin) actor('ghost' + e.id, 'echo ghost-origin ' + e.type + (charOf() ? ' char' : ''), echoBody(e, true), e.hop.origin.x, e.hop.origin.y, seen);
       const el = actor('echo' + e.id, 'echo ' + e.type + (charOf() ? ' char' : '') + (e.required ? ' required' : '') + (e.state === 'FAVOURED' ? ' fav' : '') + (e.state === 'COOLDOWN' ? ' cool' : ''),
@@ -456,13 +468,13 @@
       el.querySelector('b').textContent = e.activeB - e.counter;
       el.querySelector('i').textContent = blocked ? '✕' : '';
     }
-    actor('player', 'playerA', '<div class="orb-bob"><div class="orb o-' + prog.equip.orb + '"></div></div>', S.player.x, S.player.y, seen);
+    actor('player', 'playerA', '<div class="orb-bob">' + orbHTML(prog.equip.orb) + '</div>', S.player.x, S.player.y, seen);
     // hint marker
     if (G.hint) {
       const a = G.hint;
       if (a.k === 'move') {
         const d = AM.DELTA[a.d];
-        const el = actor('hint', 'hintGhost', '<div class="hring"><i></i></div><div class="hg"><div class="orb o-' + prog.equip.orb + '"></div></div>', S.player.x, S.player.y, seen);
+        const el = actor('hint', 'hintGhost', '<div class="hring"><i></i></div><div class="hg">' + orbHTML(prog.equip.orb) + '</div>', S.player.x, S.player.y, seen);
         el.style.setProperty('--hx', d[0]); el.style.setProperty('--hy', d[1]);
       } else if (a.k === 'hop') actor('hint', 'hintGhost', '<div class="hring" style="transform:none"><i></i></div>', a.x, a.y, seen);
     }
@@ -859,9 +871,9 @@
   function previewHTML(item) {
     if (item.slot === 'face' && item.char) return '<button class="preview charpv" data-pv="' + item.id + '" aria-label="Play with ' + esc(item.name) + '"><span class="charbox">' + Chars.render(item.char) + '</span><span class="plat" style="--c:' + Chars.RARITY[item.rarity].color + '"></span></button>';
     if (item.slot === 'face') return '<div class="preview">' + ['trace', 'flicker', 'mason'].map((t) => '<div class="glyph ' + t + '" style="--g:46px;--ts:46px"><span>' + letterHTML(t, item.id) + faceHTML(item.id) + '</span></div>').join('') + '</div>';
-    if (item.slot === 'orb') return '<div class="preview"><div class="pv-actor"><div class="orb o-' + item.id + '"></div></div></div>';
-    if (item.slot === 'trail') return '<div class="preview"><div class="pv-trail">' + [0.3, 0.55, 0.8].map((o) => '<span class="trail" style="position:relative;width:26px;height:26px;opacity:' + o + '"><span class="dot t-' + item.id + '" style="position:absolute;inset:4px;border-radius:50%"></span></span>').join('') + '<div class="pv-actor" style="width:56px;height:56px"><div class="orb o-' + prog.equip.orb + '"></div></div></div></div>';
-    if (item.slot === 'portal') return '<div class="preview"><div class="tile floor exit p-' + item.id + '" style="--ts:64px"></div></div>';
+    if (item.slot === 'orb') return '<div class="preview"><div class="pv-actor">' + orbHTML(item.id) + '</div></div>';
+    if (item.slot === 'trail') return '<div class="preview"><div class="pv-trail">' + [0.3, 0.55, 0.8].map((o) => '<span class="trail" style="position:relative;width:26px;height:26px;opacity:' + o + '">' + dotHTML(item.id, 'span', ';position:absolute;inset:4px') + '</span>').join('') + '<div class="pv-actor" style="width:56px;height:56px">' + orbHTML(prog.equip.orb) + '</div></div></div>';
+    if (item.slot === 'portal') { const g = genOf(item.id); return '<div class="preview"><div class="tile floor exit ' + (g ? 'pg pg-' + g.style + '" style="--ts:64px;' + Cos.vars(g) : 'p-' + item.id + '" style="--ts:64px') + '"></div></div>'; }
     const icon = { hint: 'i-bulb', moves: 'i-plus', luck: 'i-bolt', skip: 'i-skip' }[item.boost];
     return '<div class="preview"><svg style="width:46px;height:46px;color:var(--gold)"><use href="#' + icon + '"/></svg></div>';
   }
@@ -988,13 +1000,13 @@
      every move and the frame beats when an echo acts. */
   function floorFx(prev, next, fired) {
     if (reduced()) return;
-    const px = next.player.x, py = next.player.y, T = TRAILS[prog.equip.trail] || {};
+    const px = next.player.x, py = next.player.y, T = trailOf(prog.equip.trail);
     const glow = T.color === 'hue' ? 'hsl(' + ((next.moves * 47) % 360) + ',90%,65%)' : T.color || getComputedStyle(document.body).getPropertyValue('--glow').trim() || '#4fe3ff';
     const from = tileRect(prev.player.x, prev.player.y), to = tileRect(px, py);
     if (to && (T.burst || T.bolt)) {
       const tx = to.left + to.width / 2, ty = to.top + to.height / 2;
       if (T.bolt && from) { Amb.bolt(from.left + from.width / 2, from.top + from.height / 2, tx, ty, '#bfeaff', 2.4); }
-      if (T.burst) Amb.burst(T.burst, tx, ty, 10);
+      if (T.burst) Amb.burst(T.burst, tx, ty, 10, T.burstColor);
     }
     const lightTile = (x, y, delay, strength, dur) => {
       const el = tileEls[y] && tileEls[y][x]; if (!el || el.classList.contains('wall')) return;
