@@ -116,6 +116,18 @@
     $('#tStars').textContent = P.totalStars(prog) + ' / ' + LEVELS.length * 3 + '★';
     const seen = Object.keys(ECHO_INFO).filter((k) => prog.seen[k]).length;
     $('#tEchoes').textContent = seen + ' / ' + Object.keys(ECHO_INFO).length;
+    // title: letters rise in one by one; two outlined echo copies trail behind. The first letter of
+    // every group of 4 (A, R, I) is gold, like the move an echo copies.
+    const logo = $('#tLogo');
+    if (!logo.dataset.split) {
+      logo.dataset.split = '1';
+      const t = 'AFTERMOTION', letters = t.split('').map((c, i) => '<span class="ch' + (i % 4 === 0 ? ' head' : '') + '" style="--i:' + i + '">' + c + '</span>').join('');
+      logo.innerHTML = '<span class="lw echo e2" aria-hidden="true">' + t + '</span><span class="lw echo e1" aria-hidden="true">' + t + '</span><span class="lw main" aria-hidden="true">' + letters + '</span>';
+    }
+    $('#tProgFill').style.width = (done / LEVELS.length) * 100 + '%';
+    $('#tProg').textContent = done + ' of ' + LEVELS.length + ' levels cleared · ' + P.totalStars(prog) + ' stars';
+    const dm = $('#tDemo');
+    if (!dm.dataset.on) { dm.dataset.on = '1'; playDemo(dm, 'trace'); }
     const day = today(), ds = P.dailyStatus(prog, day), di = P.dailyLevelIndex(prog, LEVELS, day);
     const dc = $('#tDaily');
     dc.classList.toggle('ready', di >= 0 && !ds.done); dc.classList.toggle('done', ds.done);

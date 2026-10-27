@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Outfit:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="css/style.css?v=2026-10-27c">
+<link rel="stylesheet" href="css/style.css?v=2026-10-27d">
 </head>
 <body>
 <svg class="sprite" width="0" height="0" aria-hidden="true" focusable="false">
@@ -47,28 +47,34 @@
 
 <!-- TITLE -->
 <section id="title" class="screen" hidden>
-  <div class="floaters" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-  <div class="title-wrap">
-    <div class="trail-dots" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-    <h1 class="logo">AFTERMOTION<span class="ghost g3" aria-hidden="true">AFTERMOTION</span><span class="ghost g2" aria-hidden="true">AFTERMOTION</span><span class="ghost g1" aria-hidden="true">AFTERMOTION</span></h1>
-    <p class="tagline">Every move echoes. Only the first one counts.</p>
-    <button id="tContinue" class="cta"><svg><use href="#i-play"/></svg><span id="tContinueLabel">Play</span><kbd>Enter</kbd></button>
-    <div class="daily-row">
-      <button class="daily-card" id="tDaily"><span class="dc-ico"><svg><use href="#i-flame"/></svg></span><span class="dc-txt"><b>Daily Echo <kbd>D</kbd></b><small id="tDailySub"></small></span><span class="streak" id="tStreak"></span></button>
-      <button class="chest-card" id="tRewards" data-go="rewards"><span class="dc-ico chest"><svg><use href="#i-gift"/></svg></span><span class="dc-txt"><b><span id="tRewardsTitle">Rewards</span> <kbd>R</kbd></b><small id="tRewardsSub"></small></span><span class="badge" id="tRewardsBadge" hidden></span></button>
-    </div>
-    <button class="shop-cta" data-go="shop"><span class="dc-ico shopi"><svg><use href="#i-bag"/></svg></span><span class="dc-txt"><b>Shop &amp; unlocks <kbd>S</kbd></b><small id="tShopSub"></small></span><span class="shop-new" id="tShopNew" hidden>NEW</span></button>
-    <div class="menu-grid">
-      <button class="mbtn" data-go="map"><span class="mi" style="background:#4fe3ff"><svg><use href="#i-map"/></svg></span>Levels <kbd>L</kbd><small id="tStars"></small></button>
-      <button class="mbtn" data-go="echoes"><span class="mi ring-ico"></span>Echoes <kbd>E</kbd><small id="tEchoes"></small></button>
-      <button class="mbtn" data-open="help"><span class="mi" style="background:#ff5c8a"><svg><use href="#i-help"/></svg></span>How to play <kbd>I</kbd></button>
-      <button class="mbtn" data-open="settings"><span class="mi" style="background:#2c2266"><svg><use href="#i-gear"/></svg></span>Settings <kbd>G</kbd></button>
-    </div>
-  </div>
-  <div class="title-foot">
+  <div class="home-bg" aria-hidden="true"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i></div>
+  <header class="home-top">
     <div class="pills"><span class="pill"><i class="coin-ico"></i><b class="coinCount">0</b></span><span class="pill"><svg class="star-ico"><use href="#i-star"/></svg><b id="tStarCount">0</b></span><button class="pill clover-pill" id="tClover" aria-label="Clover luck"><svg><use href="#i-clover"/></svg><b class="cloverCount">0</b></button></div>
-    <span class="dim small"><span id="tFoot"></span><span class="keys-hint"> · press <kbd>?</kbd> for keyboard shortcuts</span></span>
+    <div class="home-icons">
+      <button class="icon-btn" data-open="help" aria-label="How to play (I)" title="How to play (I)"><svg><use href="#i-help"/></svg></button>
+      <button class="icon-btn" data-open="settings" aria-label="Settings (G)" title="Settings (G)"><svg><use href="#i-gear"/></svg></button>
+    </div>
+  </header>
+  <main class="home">
+    <div class="hero">
+      <span class="eyebrow">A PUZZLE GAME OF DELAYED COPIES</span>
+      <h1 class="logo" id="tLogo" aria-label="Aftermotion">AFTERMOTION</h1>
+      <p class="tagline">Every move echoes. <em>Only the first one counts.</em></p>
+      <div class="hero-cta">
+        <button id="tContinue" class="cta"><svg><use href="#i-play"/></svg><span id="tContinueLabel">Play</span><kbd>Enter</kbd></button>
+        <button class="hero-sec" data-go="map"><svg><use href="#i-map"/></svg>Levels<small id="tStars"></small><kbd>L</kbd></button>
+      </div>
+      <div class="hero-progress"><div class="hp-bar"><i id="tProgFill"></i></div><small id="tProg"></small></div>
+    </div>
+    <div class="hero-demo"><div class="demo" id="tDemo"></div></div>
+  </main>
+  <div class="home-tiles">
+    <button class="tile daily-card" id="tDaily"><span class="dc-ico"><svg><use href="#i-flame"/></svg></span><span class="dc-txt"><b>Daily Echo <kbd>D</kbd></b><small id="tDailySub"></small></span><span class="streak" id="tStreak"></span></button>
+    <button class="tile chest-card" id="tRewards" data-go="rewards"><span class="dc-ico chest"><svg><use href="#i-gift"/></svg></span><span class="dc-txt"><b><span id="tRewardsTitle">Rewards</span> <kbd>R</kbd></b><small id="tRewardsSub"></small></span><span class="badge" id="tRewardsBadge" hidden></span></button>
+    <button class="tile shop-cta" data-go="shop"><span class="dc-ico shopi"><svg><use href="#i-bag"/></svg></span><span class="dc-txt"><b>Shop &amp; unlocks <kbd>S</kbd></b><small id="tShopSub"></small></span><span class="shop-new" id="tShopNew" hidden>NEW</span></button>
+    <button class="tile echo-tile" data-go="echoes"><span class="dc-ico ring-ico"></span><span class="dc-txt"><b>Echoes <kbd>E</kbd></b><small><span id="tEchoes"></span> discovered</small></span></button>
   </div>
+  <footer class="title-foot"><span class="dim small"><span id="tFoot"></span><span class="keys-hint"> · press <kbd>?</kbd> for keyboard shortcuts</span></span></footer>
 </section>
 
 <!-- MAP -->
@@ -202,17 +208,17 @@
 <div id="fx" class="fx-layer" aria-hidden="true"></div>
 <div id="reveal" class="reveal" hidden></div>
 
-<script src="js/engine.js?v=2026-10-27c"></script>
-<script src="js/levels.js?v=2026-10-27c"></script>
-<script src="js/progress.js?v=2026-10-27c"></script>
-<script src="js/characters.js?v=2026-10-27c"></script>
-<script src="js/cosmetics.js?v=2026-10-27c"></script>
-<script src="js/shop.js?v=2026-10-27c"></script>
-<script src="js/rewards.js?v=2026-10-27c"></script>
-<script src="js/extras.js?v=2026-10-27c"></script>
-<script src="js/demos.js?v=2026-10-27c"></script>
-<script src="js/audio.js?v=2026-10-27c"></script>
-<script src="js/ambient.js?v=2026-10-27c"></script>
-<script src="js/main.js?v=2026-10-27c"></script>
+<script src="js/engine.js?v=2026-10-27d"></script>
+<script src="js/levels.js?v=2026-10-27d"></script>
+<script src="js/progress.js?v=2026-10-27d"></script>
+<script src="js/characters.js?v=2026-10-27d"></script>
+<script src="js/cosmetics.js?v=2026-10-27d"></script>
+<script src="js/shop.js?v=2026-10-27d"></script>
+<script src="js/rewards.js?v=2026-10-27d"></script>
+<script src="js/extras.js?v=2026-10-27d"></script>
+<script src="js/demos.js?v=2026-10-27d"></script>
+<script src="js/audio.js?v=2026-10-27d"></script>
+<script src="js/ambient.js?v=2026-10-27d"></script>
+<script src="js/main.js?v=2026-10-27d"></script>
 </body>
 </html>

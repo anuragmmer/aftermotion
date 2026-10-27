@@ -80,5 +80,25 @@
   "par": 14,
   "states": 2545,
   "path": "DUUULRRDUDDRRU"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "##########",
+   "#.#P...A.#",
+   "#...a.##.#",
+   "#....#.#X#",
+   "#.T..#Z#.#",
+   "##########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T"
+  ],
+  "par": 27,
+  "states": 4587,
+  "path": "RRRLDUDLURRLRLLDURDUDURRRDD"
  }
 ]
