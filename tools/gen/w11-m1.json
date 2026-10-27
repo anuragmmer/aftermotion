@@ -1,0 +1,27 @@
+[
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "##########",
+   "#..bZ...##",
+   "#...#.o..#",
+   "#P#...a..#",
+   "#....XM..#",
+   "##########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "M",
+   "crate"
+  ],
+  "exitLock": [
+   "A",
+   "B"
+  ],
+  "par": 21,
+  "states": 80013,
+  "path": "DUURRDRRRURDUULLLRDDD"
+ }
+]
