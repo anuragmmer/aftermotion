@@ -55,28 +55,32 @@ const RECIPES = {
   },
   // World 9, Quicksilver: Flicker hops into sealed pockets, coins for Favour, tight move limits
   9: (rng) => {
-    const W = 9 + Math.floor(rng() * 3), H = 6, g = blank(W, H), dx = W - 3;
+    const W = 11 + Math.floor(rng() * 3), H = 6 + Math.floor(rng() * 2), g = blank(W, H), dx = W - 3, crate = rng() < 0.6, d0 = 5 + Math.floor(rng() * 2);
     divider(rng, g, dx, 'A');
+    if (crate) divider(rng, g, d0, 'B');
     put(g, cellIn(rng, g, dx + 1, W - 2, 1, H - 2), 'X');
     // a sealed pocket holding the plate: only a hop gets in
     const px = 2 + Math.floor(rng() * (dx - 4)), py = 1 + Math.floor(rng() * 2);
     for (let y = py - 1; y <= py + 1; y++) for (let x = px - 1; x <= px + 1; x++) if (g[y] && g[y][x] !== undefined && y > 0 && y < H - 1 && x > 0) g[y][x] = '#';
     g[py][px] = 'a';
-    scatter(rng, g, Math.floor(rng() * 3), 1, dx - 1);
-    put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'P');
-    put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'F');
+    const near = crate ? d0 - 1 : dx - 1;
+    scatter(rng, g, 1 + Math.floor(rng() * 3), 1, dx - 1);
+    if (crate) { put(g, cellIn(rng, g, 1, near, 1, H - 2), 'b'); put(g, cellIn(rng, g, 2, near - 1, 2, H - 3), 'o'); }
+    put(g, cellIn(rng, g, 1, near, 1, H - 2), 'P');
+    put(g, cellIn(rng, g, 1, near, 1, H - 2), 'F');
     const coins = rng() < 0.5;
     if (coins) { put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'c'); put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'c'); }
-    return { map: g, mode: 'through', required: [], needs: ['F', 'hop'], luck0: coins ? 60 : 0, coins };
+    return { map: g, mode: 'through', required: [], needs: crate ? ['F', 'hop', 'crate'] : ['F', 'hop'], luck0: coins ? 60 : 0, coins };
   },
   // World 10, Workshop: Mason and Keeper hold plates for each other
   10: (rng) => {
-    const W = 10 + Math.floor(rng() * 3), H = 6 + Math.floor(rng() * 2), g = blank(W, H);
-    const d1 = 4 + Math.floor(rng() * 3), d2 = W - 3, both = rng() < 0.6;
+    const W = 11 + Math.floor(rng() * 3), H = 6 + Math.floor(rng() * 2), g = blank(W, H);
+    const d1 = 4 + Math.floor(rng() * 3), d2 = W - 3, both = rng() < 0.85;
     divider(rng, g, d2, 'A'); if (both) divider(rng, g, d1, 'B');
     put(g, cellIn(rng, g, d2 + 1, W - 2, 1, H - 2), 'X');
     const left = both ? d1 - 1 : d2 - 1;
-    scatter(rng, g, 1 + Math.floor(rng() * 3), 1, left);
+    scatter(rng, g, 2 + Math.floor(rng() * 4), 1, left);
+    if (both) scatter(rng, g, 1 + Math.floor(rng() * 2), d1 + 1, d2 - 1);
     put(g, cellIn(rng, g, 1, left, 1, H - 2), 'a');
     if (both) put(g, cellIn(rng, g, d1 + 1, d2 - 1, 1, H - 2), 'b');
     put(g, cellIn(rng, g, 1, left, 1, H - 2), 'P');
@@ -185,7 +189,9 @@ function apply() {
     const pool = [...uniq.values()].sort((a, b) => a.par * 1000 + a.states / 1000 - (b.par * 1000 + b.states / 1000));
     if (pool.length < 10) throw new Error('world ' + w + ' has only ' + pool.length + ' candidates');
     // spread across the difficulty range, hardest last (the boss)
-    const pick = Array.from({ length: 10 }, (_, i) => pool[Math.round((i * (pool.length - 1)) / 9)]);
+    // later worlds start further up the difficulty range
+    const lo = Math.min(Math.floor(pool.length * 0.1 * (w - 7)), pool.length - 10), span = pool.length - 1 - lo;
+    const pick = Array.from({ length: 10 }, (_, i) => pool[lo + Math.round((i * span) / 9)]);
     const M = WORLD_META[w];
     worlds += `    { id: ${w}, name: ${q(M.name)}, blurb: ${q(M.blurb)}, color: ${q(M.color)} },\n`;
     pick.forEach((d, i) => {
