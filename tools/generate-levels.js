@@ -120,8 +120,11 @@ const RECIPES = {
   },
   // World 11, Storm Front: the Blocker interferes while echoes and crates hold the doors
   11: (rng) => {
-    if (rng() < (HARD ? 0.85 : 0.5)) {
-      const pair = [['T', 'o'], ['M', 'K'], ['F', 'o'], ['T', 'M'], ['F', 'K']][Math.floor(rng() * 5)];
+    // MIXONLY=1: only two-holder levels without Trace, to vary Storm Front
+    const MIX = +process.env.MIXONLY || 0;
+    if (MIX || rng() < (HARD ? 0.85 : 0.5)) {
+      const pairs = MIX ? [['M', 'K'], ['F', 'o'], ['F', 'K'], ['M', 'o'], ['F', 'M']] : [['T', 'o'], ['M', 'K'], ['F', 'o'], ['T', 'M'], ['F', 'K']];
+      const pair = pairs[Math.floor(rng() * pairs.length)];
       const needs = pair.map((k) => (k === 'o' ? 'crate' : k));
       return { map: dualLock(rng, pair.concat('Z')), mode: 'through', required: [], needs, core: needs, exitLock: ['A', 'B'], enemy: true };
     }
