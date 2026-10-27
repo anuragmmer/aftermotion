@@ -508,7 +508,7 @@
         let lbl = '';
         if (L.plates[k]) { cls += ' plate'; lbl = L.plates[k].toLowerCase(); el.style.setProperty('--pc', PLATE_COLOR[L.plates[k]]); }
         if (L.doors[k]) { cls = 'tile floor door'; lbl = L.doors[k]; el.style.setProperty('--pc', PLATE_COLOR[L.doors[k]]); }
-        if (AM.isExit(L, x, y)) { cls += ' exit' + portalClass(el, look('portal')); lbl = lbl || ''; if (L.exitLock.length) { cls += ' powered'; lbl = L.exitLock[0].toLowerCase(); el.style.setProperty('--pc', PLATE_COLOR[L.exitLock[0]]); } }
+        if (AM.isExit(L, x, y)) { cls += ' exit' + portalClass(el, look('portal')); lbl = lbl || ''; if (L.exitLock.length) { cls += ' powered'; lbl = L.exitLock.join('').toLowerCase(); el.style.setProperty('--pc', PLATE_COLOR[L.exitLock[0]]); } }
         el.className = cls;
         if (lbl) el.innerHTML = '<span class="lbl">' + lbl + '</span>';
         if (AM.isExit(L, x, y)) el.insertAdjacentHTML('beforeend', '<span class="peye"></span>');
@@ -1084,7 +1084,7 @@
       ? '<span class="dc-ico"><svg><use href="#i-star"/></svg></span><div class="gb-txt"><span class="coach-tag">NEXT UNLOCK</span><b>' + esc(goal.text) + '</b>' +
         (goal.item.price ? '<div class="bar2"><i style="width:' + Math.min(100, Math.round((prog.coins / goal.item.price) * 100)) + '%"></i></div>' : '') + '</div>'
       : '<div class="gb-txt"><b>You own everything. Legend!</b></div>';
-    $('#shopTabs').innerHTML = Object.keys(TAB_NAMES).map((k) => '<button class="tab" role="tab" data-tab="' + k + '" aria-selected="' + (k === shopTab) + '">' + TAB_NAMES[k] + '</button>').join('');
+    $('#shopTabs').innerHTML = Object.keys(TAB_NAMES).map((k) => '<button class="tab" role="tab" data-tab="' + k + '" aria-selected="' + (k === shopTab) + '">' + TAB_NAMES[k] + ' <kbd>' + (Object.keys(TAB_NAMES).indexOf(k) + 1) + '</kbd></button>').join('');
     $$('#shopTabs .tab').forEach((b) => (b.onclick = () => { shopTab = b.dataset.tab; SFX.click(); renderShop(); }));
     const RANK = { common: 0, rare: 1, epic: 2, legendary: 3 };
     const list = Shop.CATALOG.filter((c) => c.slot === shopTab);
@@ -1155,7 +1155,7 @@
       chests: prog.chestQueue.length, ach: R.ACH.filter((a) => R.achState(prog, LEVELS, a).claimable).length, stats: 0,
       quiz: X.quizState(prog, day).done ? 0 : X.QUIZ.perDay - X.quizState(prog, day).k, garden: X.gardenState(prog, LEVELS, Date.now()).full ? 1 : 0,
     };
-    $('#rwTabs').innerHTML = Object.keys(RW_TABS).map((k) => '<button class="tab" role="tab" data-tab="' + k + '" aria-selected="' + (k === rwTab) + '">' + RW_TABS[k] + (badge[k] ? '<span class="tbadge">' + badge[k] + '</span>' : '') + '</button>').join('');
+    $('#rwTabs').innerHTML = Object.keys(RW_TABS).map((k) => '<button class="tab" role="tab" data-tab="' + k + '" aria-selected="' + (k === rwTab) + '">' + RW_TABS[k] + ' <kbd>' + (Object.keys(RW_TABS).indexOf(k) + 1) + '</kbd>' + (badge[k] ? '<span class="tbadge">' + badge[k] + '</span>' : '') + '</button>').join('');
     $$('#rwTabs .tab').forEach((b) => (b.onclick = () => { if (spinning) return; rwTab = b.dataset.tab; quizView = null; SFX.click(); renderRewards(); }));
     ({ quests: rwQuests, quiz: rwQuiz, wheel: rwWheel, garden: rwGarden, chests: rwChests, ach: rwAch, stats: rwStats })[rwTab](day);
     coins();
@@ -1195,7 +1195,7 @@
   function rwWheel(day) {
     const n = R.spinsAvailable(prog, day), free = prog.wheel.freeDay !== day, tot = R.SEGMENTS.reduce((a, s) => a + s.w, 0);
     $('#rwBody').innerHTML = '<div class="wheel-layout"><div class="wheel-wrap"><div class="wheel-ptr" id="wPtr"></div>' + wheelSVG() +
-      '<button class="wheel-hub" id="wSpin"' + (n ? '' : ' disabled') + '>' + (n ? 'SPIN' : '<svg><use href="#i-lock"/></svg>') + '</button></div>' +
+      '<button class="wheel-hub" id="wSpin"' + (n ? '' : ' disabled') + '>' + (n ? 'SPIN<kbd class="k">Space</kbd>' : '<svg><use href="#i-lock"/></svg>') + '</button></div>' +
       '<div class="wheel-side card"><div id="wResult" class="w-result">' + (n ? '<b>' + (free ? 'Your free daily spin is ready!' : plural(n, 'spin') + ' ready') + '</b>' + (free && prog.wheel.spins ? '<small>+' + prog.wheel.spins + ' banked</small>' : '')
         : '<b>No spins right now</b><small>Next free spin in ' + untilTomorrow() + '.</small>') + '</div>' +
       '<h3>How to get spins</h3><ul class="help-list"><li>1 free spin every day</li><li>Clear the Daily Echo: +1</li><li>Claim all 3 daily quests: +1</li><li>Achievement tiers 2 and up: +1 each</li><li>Gold chests (20%) and Mythic chests (always): +1</li></ul>' +
@@ -1241,8 +1241,10 @@
   function rwChests() {
     const q = prog.chestQueue, C = R.CHESTS;
     const pct = (x) => Math.round(x * 100) + '%';
-    $('#rwBody').innerHTML = '<div class="rw-head"><b>' + (q.length ? plural(q.length, 'chest') + ' waiting' : 'No chests waiting') + '</b><small>' + (q.length ? 'Open them one by one: tap each chest three times.' : 'Earn chests by playing; see below.') + '</small></div>' +
-      (q.length ? '<div class="chest-queue">' + q.map((c) => '<div class="cq" style="--cc:' + C[c.tier].color + '">' + chestSVG(c.tier) + '<b>' + C[c.tier].name + '</b><small>' + esc(c.source) + '</small></div>').join('') + '</div><div class="row"><button class="btn gold big" id="cqOpen"><svg><use href="#i-chest"/></svg>Open ' + (q.length > 1 ? 'chests' : 'chest') + '</button></div>' : '') +
+    $('#rwBody').innerHTML = '<div class="rw-head"><b>' + (q.length ? plural(q.length, 'chest') + ' waiting' : 'No chests waiting') + '</b><small>' + (q.length ? 'Tap a chest to open it, or open them all at once.' : 'Earn chests by playing; see below.') + '</small></div>' +
+      (q.length ? '<div class="chest-queue">' + q.map((c, i) => '<button class="cq" data-cq="' + i + '" style="--cc:' + C[c.tier].color + '" aria-label="Open ' + C[c.tier].name + '">' + chestSVG(c.tier) + '<b>' + C[c.tier].name + '</b><small>' + esc(c.source) + '</small><span class="cq-open">Open</span></button>').join('') + '</div>' +
+        '<div class="row cq-row"><button class="btn gold big" id="cqOpen"><svg><use href="#i-chest"/></svg>Open next <kbd>O</kbd></button>' + (q.length > 1 ? '<button class="btn gold big" id="cqAll"><svg><use href="#i-chest"/></svg>Open all ' + q.length + ' <kbd>A</kbd></button>' : '') +
+        '<label class="rv-quick inline"><input type="checkbox" id="cqQuick"' + (prog.quickOpen ? ' checked' : '') + '> Quick open (one tap)</label></div>' : '') +
       '<div class="rw-grid"><div class="card"><h3>How to earn chests</h3><ul class="help-list">' +
       '<li>' + chestChip('bronze') + ' every 3rd new level you clear</li><li>' + chestChip('silver') + ' every 10 stars you earn</li>' +
       '<li>' + chestChip('gold') + ' first clear of a boss level (every 10th), plus ' + chestChip('silver') + ' if you reach par</li>' +
@@ -1252,6 +1254,9 @@
       Object.keys(C).map((k) => { const t = C[k]; return '<tr><td>' + chestChip(k) + '</td><td>' + t.coins[0] + '–' + t.coins[1] + '</td><td>' + (t.boosts || pct(t.boostChance) + ' for 1') + '</td><td>' + (t.cos ? pct(t.cos) + ' ' + t.cosR.join('/') : '—') + '</td><td>' + [t.spin ? pct(t.spin) + ' spin' : '', t.luck ? pct(t.luck) + ' Clover' : ''].filter(Boolean).join(', ') + '</td></tr>'; }).join('') +
       '</table><p class="small dim">Legendary items never drop from chests: they keep their value. If you already own every item a chest could drop, you get bonus coins instead.</p></div></div>';
     on('cqOpen', () => revealChests(renderRewards));
+    on('cqAll', () => revealChests(renderRewards, { all: true }));
+    $$('#rwBody [data-cq]').forEach((b) => (b.onclick = () => { SFX.click(); revealChests(renderRewards, { index: +b.dataset.cq }); }));
+    const qk = $('#cqQuick'); if (qk) qk.onchange = () => { prog.quickOpen = qk.checked; persist(); };
   }
   function rwAch() {
     $('#rwBody').innerHTML = '<div class="rw-head"><b>Achievements</b><small>Permanent goals with tiers. Each tier pays coins and a chest; tier 2 and up also give a wheel spin.</small></div><div class="ach-list">' +
@@ -1329,7 +1334,7 @@
     $('#rwBody').innerHTML = head + '<div class="quiz-layout"><div class="quiz-board" style="--w:' + (W - 2) + ';--h:' + (H - 2) + '">' + cells + '<div class="qlayer">' + pieces + '</div></div>' +
       '<div class="card quiz-side"><span class="coach-tag">QUESTION ' + (q.k + 1) + ' OF ' + X.QUIZ.perDay + ' · PAYS ' + X.QUIZ.pay[q.k] + ' COINS</span>' +
       '<p class="q-ask">You (the orb) make these ' + q.moves.length + ' moves. <b>' + name + '</b> (the dashed ring) copies only the <b>first move of each group of ' + q.B + '</b>' + (q.k > 0 ? ', and stays put if a wall is in the way' : '') + '.</p>' +
-      groupChips(q) + '<p class="q-ask"><b>Where does ' + name + ' end up?</b> Tap A, B, C or D on the board.</p>' +
+      groupChips(q) + '<p class="q-ask"><b>Where does ' + name + ' end up?</b> Tap A, B, C or D on the board (or press the letter).</p>' +
       '<div id="qResult"></div></div></div>';
     $$('#rwBody .qopt').forEach((b) => (b.onclick = () => {
       if (quizView) return;
@@ -1348,7 +1353,7 @@
     $('#qResult').innerHTML = '<div class="q-res ' + (res.ok ? 'ok' : 'no') + '"><b>' + (res.ok ? 'Correct! +' + res.coins + ' coins' : 'Not quite: it was ' + 'ABCD'[q.answer] + '.') + '</b>' +
       '<ul class="q-why">' + why + (q.moves.length % q.B ? '<li>The last ' + (q.moves.length % q.B) + ' move(s) are an unfinished group, so ' + name + ' has not acted on them yet.</li>' : '') + '</ul>' +
       (res.perfect ? '<span class="gold-t">Perfect day! +' + X.QUIZ.perfect + ' bonus coins and a Bronze chest.</span>' : '') +
-      '<div class="row"><button class="btn" id="qWatch"><svg><use href="#i-play"/></svg>Watch again</button>' + (st.done ? '<button class="btn gold" id="qDone">See results</button>' : '<button class="btn gold" id="qNext">Next question<svg><use href="#i-play"/></svg></button>') + '</div></div>';
+      '<div class="row"><button class="btn" id="qWatch"><svg><use href="#i-play"/></svg>Watch again <kbd>W</kbd></button>' + (st.done ? '<button class="btn gold" id="qDone">See results <kbd>N</kbd></button>' : '<button class="btn gold" id="qNext">Next question<svg><use href="#i-play"/></svg><kbd>N</kbd></button>') + '</div></div>';
     on('qNext', () => { quizView = null; renderRewards(); });
     on('qDone', () => { quizView = null; renderRewards(); });
     on('qWatch', () => quizReplay(q, res));
@@ -1383,7 +1388,7 @@
       Array.from({ length: Math.min(12, Math.floor(gs.stored / Math.max(1, gs.cap / 12))) }, (_, i) => '<i class="g-coin" style="left:' + (5 + ((i * 53) % 90)) + '%;animation-delay:' + i * 0.23 + 's"></i>').join('') + '</div>' +
       '<div class="rw-grid"><div class="card"><h3>' + gs.stored.toLocaleString('en-US') + ' coins ready</h3><div class="bar2"><i style="width:' + Math.round((gs.hours / X.GARDEN.capHours) * 100) + '%"></i></div>' +
       '<small class="dim">' + (gs.full ? 'The garden is full! Collect so it keeps growing.' : 'Full in ' + hrs + 'h ' + mins + 'm (' + gs.cap.toLocaleString('en-US') + ' coins).') + '</small>' +
-      '<button class="btn gold big" id="gCollect"' + (gs.stored < 1 ? ' disabled' : '') + '><i class="coin-ico"></i>Collect ' + gs.stored.toLocaleString('en-US') + '</button></div>' +
+      '<button class="btn gold big" id="gCollect"' + (gs.stored < 1 ? ' disabled' : '') + '><i class="coin-ico"></i>Collect ' + gs.stored.toLocaleString('en-US') + ' <kbd>C</kbd></button></div>' +
       '<div class="card"><h3>' + gs.rate + ' coins per hour</h3><table class="chest-table"><tr><th>Source</th><th>Each</th><th>You own</th></tr>' +
       '<tr><td>Garden base</td><td>' + X.GARDEN.base + '/h</td><td>—</td></tr>' +
       ['common', 'rare', 'epic', 'legendary'].map((r) => '<tr><td style="color:' + Chars.RARITY[r].color + '">' + Chars.RARITY[r].label + ' item</td><td>+' + X.GARDEN.rate[r] + '/h</td><td>' + count(r) + '</td></tr>').join('') +
@@ -1612,14 +1617,14 @@
       (goal ? '<div class="note"><svg><use href="#i-bag"/></svg><span><b>Next unlock:</b> ' + esc(goal.text) + '</span></div>' : '') +
       '<div class="note"><svg><use href="#i-restart"/></svg><span>' + esc(receipt.next) + '</span></div>' +
       (last ? '<p>You finished every level. More worlds are on the way.</p>' : '') +
-      '<div class="row">' + (prog.chestQueue.length ? '<button class="btn chestbtn" id="vChests"><svg><use href="#i-chest"/></svg>Open ' + plural(prog.chestQueue.length, 'chest') + '</button>' : '') + '<button class="btn" id="vMap"><svg><use href="#i-map"/></svg>Map</button><button class="btn" id="vReplay"><svg><use href="#i-restart"/></svg>Replay</button>' +
-      (last || G.daily ? '' : '<button class="btn gold big" id="vNext">Next level<svg><use href="#i-play"/></svg></button>') +
+      '<div class="row">' + (prog.chestQueue.length ? '<button class="btn chestbtn" id="vChests"><svg><use href="#i-chest"/></svg>Open ' + plural(prog.chestQueue.length, 'chest') + ' <kbd>C</kbd></button>' : '') + '<button class="btn" id="vHomeBtn"><svg><use href="#i-home"/></svg>Home <kbd>H</kbd></button><button class="btn" id="vMap"><svg><use href="#i-map"/></svg>Map <kbd>M</kbd></button><button class="btn" id="vReplay"><svg><use href="#i-restart"/></svg>Replay <kbd>R</kbd></button>' +
+      (last || G.daily ? '' : '<button class="btn gold big" id="vNext">Next level<svg><use href="#i-play"/></svg><kbd>Enter</kbd></button>') +
       (G.daily ? '<button class="btn gold big" id="vHome">Home<svg><use href="#i-play"/></svg></button>' : '') + '</div>',
       () => {
         on('vMap', () => { mapSel = Math.min(G.idx + 1, LEVELS.length - 1); mapWorld = LEVELS[mapSel].world; show('map'); });
         on('vReplay', () => startLevel(G.idx));
         on('vNext', () => startLevel(G.idx + 1));
-        on('vHome', () => show('title'));
+        on('vHome', () => show('title')); on('vHomeBtn', () => show('title'));
         [1, 2, 3].forEach((k) => { if (k <= receipt.stars) setTimeout(() => SFX.star(k), (reduced() ? 0 : 350 + k * 180)); });
         countUp($('#countUp'), receipt.total);
         confetti();
@@ -1631,7 +1636,7 @@
   // After a chest reveal, return to the result screen without re-running the rewards.
   function victoryAgain() {
     const btn = $('#vChests');
-    if (btn) { if (prog.chestQueue.length) btn.lastChild.textContent = 'Open ' + plural(prog.chestQueue.length, 'chest'); else btn.remove(); }
+    if (btn) { if (prog.chestQueue.length) btn.innerHTML = '<svg><use href="#i-chest"/></svg>Open ' + plural(prog.chestQueue.length, 'chest') + ' <kbd>C</kbd>'; else btn.remove(); }
   }
   /* ---------- chests: a glowing chest descends, you tap it three times, it bursts open ---------- */
   function chestSVG(tier) {
@@ -1645,33 +1650,65 @@
   }
   const BOOST_NAME = { hint: ['Hint', 'Hints', 'i-bulb'], moves: ['+3 moves', '+3 moves', 'i-plus'], luck: ['Lucky charm', 'Lucky charms', 'i-bolt'], skip: ['Skip ticket', 'Skip tickets', 'i-skip'] };
   let reveal = null;
-  function revealChests(done) {
+  const quickOpen = () => !!prog.quickOpen || reduced();
+  /* Loot cards for one or more opened chests; several chests are merged into totals. */
+  function lootHTML(outs) {
+    const sum = { coins: 0, dup: 0, spins: 0, luck: 0, boosts: {} }, items = [];
+    for (const o of outs) {
+      sum.coins += o.coins; sum.dup += o.dup; sum.spins += o.spin ? 1 : 0; sum.luck += o.luck || 0;
+      o.boosts.forEach((b) => (sum.boosts[b.kind] = (sum.boosts[b.kind] || 0) + b.n));
+      if (o.item) items.push(o.item);
+    }
+    const cards = ['<div class="loot coins"><i class="coin-ico"></i><b id="rvCoins">+0</b><small>coins</small></div>'];
+    Object.keys(sum.boosts).forEach((k) => { const n = BOOST_NAME[k]; cards.push('<div class="loot"><svg><use href="#' + n[2] + '"/></svg><b>×' + sum.boosts[k] + '</b><small>' + (sum.boosts[k] > 1 ? n[1] : n[0]) + '</small></div>'); });
+    items.forEach((it) => cards.push('<div class="loot item r-' + it.rarity + '" style="--rc:' + Chars.RARITY[it.rarity].color + '">' + previewHTML(it) + '<b>' + esc(it.name) + '</b><small>NEW ' + Chars.RARITY[it.rarity].label.toUpperCase() + ' ' + (it.slot === 'face' ? 'CHARACTER' : it.slot.toUpperCase()) + '</small><button class="btn gold" data-rveq="' + it.id + '">Equip</button></div>'));
+    if (sum.dup) cards.push('<div class="loot"><svg><use href="#i-star"/></svg><b>+' + sum.dup + '</b><small>bonus: you own every item a chest could drop</small></div>');
+    if (sum.spins) cards.push('<div class="loot"><svg><use href="#i-wheel"/></svg><b>+' + sum.spins + '</b><small>wheel spin' + (sum.spins > 1 ? 's' : '') + '</small></div>');
+    if (sum.luck) cards.push('<div class="loot clover"><svg><use href="#i-clover"/></svg><b>+' + sum.luck + '</b><small>Clover</small></div>');
+    return { html: cards.join(''), coins: sum.coins + sum.dup };
+  }
+  /* opts.index opens that chest of the queue first; opts.all opens every chest in one burst. */
+  function revealChests(done, opts) {
+    opts = opts || {};
     if (reveal || !prog.chestQueue.length) { if (done && !reveal) done(); return; }
     clearTimeout(G && G.revealT);
     const el = $('#reveal');
     reveal = { done, taps: 0, state: 'descend', opened: 0 };
     el.hidden = false;
+    if (opts.index) prog.chestQueue.unshift(prog.chestQueue.splice(opts.index, 1)[0]);
+    const RANK = { bronze: 0, silver: 1, gold: 2, mythic: 3 };
     const stage = () => {
-      const c = prog.chestQueue[0], T = R.CHESTS[c.tier];
-      reveal.taps = 0; reveal.state = 'descend';
+      const all = !!opts.all && prog.chestQueue.length > 1;
+      const c = all ? prog.chestQueue.reduce((a, b) => (RANK[b.tier] > RANK[a.tier] ? b : a)) : prog.chestQueue[0], T = R.CHESTS[c.tier];
+      const need = quickOpen() || all ? 1 : 3;
+      reveal.taps = 0; reveal.state = 'descend'; reveal.need = need; reveal.all = all;
       el.style.setProperty('--cc', T.color);
       el.className = 'reveal t-' + c.tier;
       el.innerHTML = '<div class="rv-rays"></div><div class="rv-glow"></div>' +
-        '<div class="rv-head"><div class="kicker">' + (prog.chestQueue.length > 1 ? prog.chestQueue.length + ' CHESTS WAITING' : 'CHEST') + '</div><h2 class="disp">' + esc(T.name) + '</h2><small>' + esc(c.source || '') + '</small></div>' +
-        '<button class="rv-chest" id="rvChest" aria-label="Open the chest"><span class="rv-halo"></span><span class="rv-beam"></span>' + chestSVG(c.tier) + '<span class="rv-shadow"></span></button>' +
-        '<p class="rv-tap" id="rvTap">' + (reduced() ? 'Tap the chest to open it' : 'Tap the chest 3 times to open it') + '</p>' +
-        '<div class="rv-loot" id="rvLoot"></div><div class="rv-actions" id="rvActions"><button class="btn" id="rvLater">Open later</button></div>';
+        '<div class="rv-head"><div class="kicker">' + (all ? 'OPEN ALL' : prog.chestQueue.length > 1 ? prog.chestQueue.length + ' CHESTS WAITING' : 'CHEST') + '</div><h2 class="disp">' + (all ? plural(prog.chestQueue.length, 'chest') : esc(T.name)) + '</h2><small>' + (all ? prog.chestQueue.map((q) => R.CHESTS[q.tier].name.replace(' chest', '')).join(' · ') : esc(c.source || '')) + '</small></div>' +
+        '<button class="rv-chest' + (all ? ' stack' : '') + '" id="rvChest" aria-label="Open the chest">' + '<span class="rv-halo"></span><span class="rv-beam"></span>' + chestSVG(c.tier) + '<span class="rv-shadow"></span></button>' +
+        '<p class="rv-tap" id="rvTap">' + (need === 1 ? 'Tap the chest (or press Space) to open ' + (all ? 'them all' : 'it') : 'Tap the chest 3 times (or press Space) to open it') + '</p>' +
+        '<div class="rv-loot" id="rvLoot"></div><div class="rv-actions" id="rvActions"><button class="btn" id="rvLater">Open later <kbd>Esc</kbd></button>' +
+        (!all && prog.chestQueue.length > 1 ? '<button class="btn" id="rvAll">Open all ' + prog.chestQueue.length + ' <kbd>A</kbd></button>' : '') + '</div>' +
+        '<label class="rv-quick"><input type="checkbox" id="rvQuick"' + (prog.quickOpen ? ' checked' : '') + '> Quick open: one tap, no fall</label>';
       const chest = $('#rvChest');
       chest.onclick = tapChest;
       $('#rvLater').onclick = () => { SFX.click(); closeReveal(); };
+      on('rvAll', () => { opts.all = true; stage(); });
+      $('#rvQuick').onchange = (e) => { prog.quickOpen = e.target.checked; persist(); if (reveal.state === 'idle' && !reveal.all) { reveal.need = prog.quickOpen ? 1 : 3; $('#rvTap').textContent = reveal.need === 1 ? 'Tap the chest (or press Space) to open it' : 'Tap the chest 3 times (or press Space) to open it'; } };
       if (reduced()) { reveal.state = 'idle'; el.classList.add('idle'); return; }
       SFX.favour();
-      const a = chest.animate([{ transform: 'translateY(-110vh) scale(.6) rotate(-8deg)', opacity: 0 }, { transform: 'translateY(12px) scale(1.04) rotate(2deg)', opacity: 1, offset: 0.78 }, { transform: 'translateY(0) scale(1) rotate(0)' }], { duration: 1100, easing: 'cubic-bezier(.2,.9,.3,1)' });
-      a.onfinish = () => { if (!reveal) return; reveal.state = 'idle'; el.classList.add('idle'); SFX.slam(); buzz(25); const [x, y] = center(chest); Amb.burst('stars', x, y + 40, 14, T.color); };
+      const fast = quickOpen();
+      const a = chest.animate(fast ? [{ transform: 'scale(.5)', opacity: 0 }, { transform: 'scale(1.06)', opacity: 1, offset: 0.7 }, { transform: 'scale(1)' }]
+        : [{ transform: 'translateY(-110vh) scale(.6) rotate(-8deg)', opacity: 0 }, { transform: 'translateY(12px) scale(1.04) rotate(2deg)', opacity: 1, offset: 0.78 }, { transform: 'translateY(0) scale(1) rotate(0)' }], { duration: fast ? 320 : 1100, easing: 'cubic-bezier(.2,.9,.3,1)' });
+      a.onfinish = () => { if (!reveal) return; reveal.state = 'idle'; el.classList.add('idle'); if (!fast) { SFX.slam(); buzz(25); } const [x, y] = center(chest); Amb.burst('stars', x, y + 40, 14, T.color); };
     };
     function tapChest() {
-      if (!reveal || reveal.state !== 'idle') return;
-      const chest = $('#rvChest'), need = reduced() ? 1 : 3;
+      if (!reveal) return;
+      // a tap while the chest is still falling skips the fall
+      if (reveal.state === 'descend') { $('#rvChest').getAnimations().forEach((x) => x.cancel()); reveal.state = 'idle'; el.classList.add('idle'); }
+      if (reveal.state !== 'idle') return;
+      const chest = $('#rvChest'), need = reveal.need;
       reveal.taps++;
       if (reveal.taps < need) {
         el.style.setProperty('--charge', reveal.taps / need);
@@ -1685,31 +1722,35 @@
     }
     function openIt() {
       reveal.state = 'open';
-      const out = R.openChest(prog, LEVELS); persist();
-      const chest = $('#rvChest'), [x, y] = center(chest), T = R.CHESTS[out.tier];
+      const outs = [];
+      if (reveal.all) while (prog.chestQueue.length) outs.push(R.openChest(prog, LEVELS));
+      else outs.push(R.openChest(prog, LEVELS));
+      persist();
+      const best = outs.reduce((a, b) => (RANK[b.tier] > RANK[a.tier] ? b : a));
+      const chest = $('#rvChest'), [x, y] = center(chest), T = R.CHESTS[best.tier];
       el.classList.remove('charging'); el.classList.add('opened');
       SFX.win(); buzz([30, 30, 80]); Amb.flash();
-      Amb.burst('confetti', x, y, 34); Amb.burst('stars', x, y - 30, 20, T.color); if (out.tier === 'mythic' || out.tier === 'gold') setTimeout(() => Amb.burst('sparks', x, y - 40, 30, '#fff'), 200);
-      $('#rvTap').textContent = '';
-      const cards = [];
-      cards.push('<div class="loot coins"><i class="coin-ico"></i><b id="rvCoins">+0</b><small>coins</small></div>');
-      out.boosts.forEach((b) => { const n = BOOST_NAME[b.kind]; cards.push('<div class="loot"><svg><use href="#' + n[2] + '"/></svg><b>×' + b.n + '</b><small>' + (b.n > 1 ? n[1] : n[0]) + '</small></div>'); });
-      if (out.item) cards.push('<div class="loot item r-' + out.item.rarity + '" style="--rc:' + Chars.RARITY[out.item.rarity].color + '">' + previewHTML(out.item) + '<b>' + esc(out.item.name) + '</b><small>NEW ' + Chars.RARITY[out.item.rarity].label.toUpperCase() + ' ' + (out.item.slot === 'face' ? 'CHARACTER' : out.item.slot.toUpperCase()) + '</small><button class="btn gold" id="rvEquip">Equip</button></div>');
-      if (out.dup) cards.push('<div class="loot"><svg><use href="#i-star"/></svg><b>+' + out.dup + '</b><small>bonus: you own every item this chest could drop</small></div>');
-      if (out.spin) cards.push('<div class="loot"><svg><use href="#i-wheel"/></svg><b>+1</b><small>wheel spin</small></div>');
-      if (out.luck) cards.push('<div class="loot clover"><svg><use href="#i-clover"/></svg><b>+' + out.luck + '</b><small>Clover</small></div>');
-      $('#rvLoot').innerHTML = cards.join('');
-      $$('#rvLoot .loot').forEach((c, i) => anim(c, [{ opacity: 0, transform: 'translateY(40px) scale(.6)' }, { opacity: 1, transform: 'translateY(-6px) scale(1.06)', offset: 0.7 }, { opacity: 1, transform: 'none' }], { duration: 520, delay: 250 + i * 160, fill: 'backwards', easing: 'cubic-bezier(.3,1.4,.5,1)' }));
-      setTimeout(() => { const c = $('#rvCoins'); if (c) countUp(c, out.coins + 0, true); SFX.coin(); }, reduced() ? 0 : 400);
-      const eq = $('#rvEquip'); if (eq) eq.onclick = () => { Shop.equip(prog, LEVELS, out.item.id); persist(); applySettings(); SFX.click(); eq.textContent = 'Equipped'; eq.disabled = true; if (G && screen === 'game') { buildBoard(); render(true); } };
-      reveal.opened++;
+      Amb.burst('confetti', x, y, 34 + outs.length * 4); Amb.burst('stars', x, y - 30, 20, T.color); if (best.tier === 'mythic' || best.tier === 'gold' || outs.length > 2) setTimeout(() => Amb.burst('sparks', x, y - 40, 30, '#fff'), 200);
+      $('#rvTap').textContent = outs.length > 1 ? plural(outs.length, 'chest') + ' opened!' : '';
+      const L2 = lootHTML(outs);
+      $('#rvLoot').innerHTML = L2.html;
+      $$('#rvLoot .loot').forEach((c, i) => anim(c, [{ opacity: 0, transform: 'translateY(40px) scale(.6)' }, { opacity: 1, transform: 'translateY(-6px) scale(1.06)', offset: 0.7 }, { opacity: 1, transform: 'none' }], { duration: 520, delay: (quickOpen() ? 80 : 250) + i * (quickOpen() ? 70 : 160), fill: 'backwards', easing: 'cubic-bezier(.3,1.4,.5,1)' }));
+      setTimeout(() => { const c = $('#rvCoins'); if (c) countUp(c, L2.coins, true); SFX.coin(); }, reduced() ? 0 : 400);
+      $$('#rvLoot [data-rveq]').forEach((eq) => (eq.onclick = () => { Shop.equip(prog, LEVELS, eq.dataset.rveq); persist(); applySettings(); SFX.click(); eq.textContent = 'Equipped'; eq.disabled = true; if (G && screen === 'game') { buildBoard(); render(true); } }));
+      reveal.opened += outs.length;
       const more = prog.chestQueue.length;
-      $('#rvActions').innerHTML = (more ? '<button class="btn" id="rvLater">Later</button><button class="btn gold big" id="rvNext"><svg><use href="#i-chest"/></svg>Next chest (' + more + ')</button>' : '') + '<button class="btn ' + (more ? '' : 'gold big') + '" id="rvDone">Collect</button>';
-      on('rvLater', closeReveal); on('rvDone', closeReveal); on('rvNext', stage);
+      $('#rvActions').innerHTML = (more ? '<button class="btn" id="rvLater">Later</button><button class="btn" id="rvAll">Open all ' + more + ' <kbd>A</kbd></button><button class="btn gold big" id="rvNext"><svg><use href="#i-chest"/></svg>Next chest (' + more + ') <kbd>Space</kbd></button>' : '') +
+        '<button class="btn ' + (more ? '' : 'gold big') + '" id="rvDone">Collect' + (more ? '' : ' <kbd>Space</kbd>') + '</button>';
+      on('rvLater', closeReveal); on('rvDone', closeReveal); on('rvNext', () => { opts.all = false; stage(); }); on('rvAll', () => { opts.all = true; stage(); });
       coins();
     }
     function closeReveal() { el.hidden = true; el.innerHTML = ''; el.className = 'reveal'; const d = reveal && reveal.done; reveal = null; coins(); if (screen === 'title') renderTitle(); if (d) d(); }
     reveal.close = closeReveal; reveal.tap = tapChest;
+    reveal.key = (k) => {
+      if (k === 'Escape') return closeReveal();
+      if (k === 'a' && $('#rvAll')) return $('#rvAll').click();
+      if (k === ' ' || k === 'Enter') { if (reveal.state === 'idle' || reveal.state === 'descend') tapChest(); else if ($('#rvNext')) $('#rvNext').click(); else if ($('#rvDone')) $('#rvDone').click(); }
+    };
     stage();
   }
   function countUp(el, total, now) {
@@ -1743,9 +1784,9 @@
   }
   function pause() {
     openModal('<h2>Paused</h2><p>' + esc(G.def.name) + ' · ' + G.S.moves + ' moves so far</p>' +
-      '<div class="row"><button class="btn gold big" id="pResume"><svg><use href="#i-play"/></svg>Resume</button></div>' +
-      '<div class="row"><button class="btn" id="pRestart"><svg><use href="#i-restart"/></svg>Restart</button><button class="btn" id="pMap"><svg><use href="#i-map"/></svg>Level map</button><button class="btn" id="pHelp"><svg><use href="#i-help"/></svg>How to play</button><button class="btn" id="pSound"><svg><use href="#i-sound"/></svg>Sound ' + (prog.sound ? 'on' : 'off') + '</button></div>',
-      () => { on('pResume', closeModal); on('pRestart', restart); on('pMap', () => { mapSel = G.idx; mapWorld = G.def.world; show('map'); }); on('pHelp', help); on('pSound', () => { prog.sound = !prog.sound; persist(); applySettings(); pause(); }); });
+      '<div class="row"><button class="btn gold big" id="pResume"><svg><use href="#i-play"/></svg>Resume <kbd>Esc</kbd></button></div>' +
+      '<div class="row"><button class="btn" id="pRestart"><svg><use href="#i-restart"/></svg>Restart</button><button class="btn" id="pMap"><svg><use href="#i-map"/></svg>Level map <kbd>M</kbd></button><button class="btn" id="pHome"><svg><use href="#i-home"/></svg>Home</button><button class="btn" id="pHelp"><svg><use href="#i-help"/></svg>How to play</button><button class="btn" id="pSound"><svg><use href="#i-sound"/></svg>Sound ' + (prog.sound ? 'on' : 'off') + '</button></div>',
+      () => { on('pResume', closeModal); on('pRestart', restart); on('pMap', () => { mapSel = G.idx; mapWorld = G.def.world; show('map'); }); on('pHome', () => show('title')); on('pHelp', help); on('pSound', () => { prog.sound = !prog.sound; persist(); applySettings(); pause(); }); });
   }
   function help() {
     const back = screen === 'game' ? '<button class="btn gold big" id="hOk">Back to the level</button>' : '<button class="btn gold big" id="hOk">Got it</button>';
@@ -1785,23 +1826,81 @@
 
   /* ================= input ================= */
   const KEYS = { ArrowUp: 'UP', ArrowDown: 'DOWN', ArrowLeft: 'LEFT', ArrowRight: 'RIGHT', w: 'UP', s: 'DOWN', a: 'LEFT', d: 'RIGHT' };
-  window.addEventListener('keydown', (ev) => {
-    if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
-    const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
-    if (reveal) {
-      if (k === 'Escape') reveal.close();
-      else if ((k === ' ' || k === 'Enter') && $('#rvChest') && !$('#rvNext') && !$('#rvDone')) { ev.preventDefault(); reveal.tap(); }
+  const K = (...ks) => ks.map((x) => '<kbd>' + x + '</kbd>').join('');
+  function keysSheet() {
+    const sec = (title, rows) => '<div><h4>' + title + '</h4>' + rows.map((r) => '<div><span>' + r[0] + '</span><span>' + r[1] + '</span></div>').join('') + '</div>';
+    openModal('<h2>Keyboard shortcuts</h2><div class="keys-sheet">' +
+      sec('Everywhere', [['Back / home', K('Esc')], ['This list', K('?')], ['Main button in a pop-up', K('Enter')]]) +
+      sec('Home screen', [['Play / continue', K('Enter')], ['Daily Echo', K('D')], ['Rewards', K('R')], ['Shop', K('S')], ['Levels', K('L')], ['Echoes', K('E')], ['How to play', K('I')], ['Settings', K('G')]]) +
+      sec('In a level', [['Move', K('←', '↑', '↓', '→') + ' or ' + K('W', 'A', 'S', 'D')], ['Undo', K('Z')], ['Restart', K('R')], ['Favour', K('F')], ['Hop', K('H')], ['Oracle', K('O')], ['Hint', K('I')], ['Plan', K('P')], ['Level map', K('M')], ['Pause', K('Esc')]]) +
+      sec('Level complete', [['Next level', K('Enter') + ' or ' + K('N')], ['Replay', K('R')], ['Map', K('M')], ['Home', K('H')], ['Open chests', K('C')]]) +
+      sec('Levels map', [['Pick a level', K('←', '→', '↑', '↓')], ['Play it', K('Enter')], ['Previous / next world', K('Q', 'E')]]) +
+      sec('Shop & Rewards', [['Switch tab', K('1') + '–' + K('7') + ' or ' + K('←', '→')], ['Quiz: answer / next', K('A', 'B', 'C', 'D') + ' ' + K('N')], ['Wheel: spin', K('Space')], ['Garden: collect', K('C')], ['Chests: open / open all', K('O', 'A')], ['Quests, achievements: claim', K('Enter')]]) +
+      sec('Opening chests', [['Tap the chest / next', K('Space')], ['Open all', K('A')], ['Later', K('Esc')]]) +
+      '</div><div class="row"><button class="btn gold big" id="ksOk">Got it</button></div>', () => on('ksOk', closeModal));
+  }
+  function tabKeys(ev, k, tabs, cur, go) {
+    const keys = Object.keys(tabs), i = keys.indexOf(cur);
+    if (/^[1-9]$/.test(k) && keys[+k - 1]) { go(keys[+k - 1]); return true; }
+    if (k === 'ArrowRight' || k === 'ArrowLeft') { ev.preventDefault(); go(keys[(i + (k === 'ArrowRight' ? 1 : keys.length - 1)) % keys.length]); return true; }
+    return false;
+  }
+  const click = (sel) => { const el = typeof sel === 'string' ? $(sel) : sel; if (el && !el.disabled) { el.click(); return true; } return false; };
+  function mapKey(ev, k) {
+    const items = levelsOf(mapWorld), at = items.findIndex((o) => o.i === mapSel);
+    const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 4, ArrowUp: -4 }[k];
+    if (step) {
+      ev.preventDefault();
+      const next = items[Math.max(0, Math.min(items.length - 1, at + step))];
+      if (next && P.isUnlocked(prog, LEVELS, next.i)) { mapSel = next.i; SFX.click(); renderMap(); }
+      else if (next) toast('Level ' + next.l.id + ' is locked: clear the level before it first.');
       return;
     }
+    if (k === 'Enter' || k === ' ') { ev.preventDefault(); click('#mapPlay'); }
+    else if (k === 'q' || k === '[' || k === 'PageUp') switchWorld(-1);
+    else if (k === 'e' || k === ']' || k === 'PageDown') switchWorld(1);
+  }
+  function rewardsKey(ev, k) {
+    if (tabKeys(ev, k, RW_TABS, rwTab, (t) => { if (spinning) return; rwTab = t; quizView = null; SFX.click(); renderRewards(); })) return;
+    if (rwTab === 'quiz') {
+      const opt = 'abcd'.indexOf(k);
+      if (opt >= 0) click('#rwBody .qopt[data-o="' + opt + '"]');
+      else if (k === 'n' || k === 'Enter') click('#qNext') || click('#qDone');
+      else if (k === 'w') click('#qWatch');
+    } else if (rwTab === 'wheel' && (k === ' ' || k === 'Enter')) { ev.preventDefault(); click('#wOpen') || click('#wAgain') || click('#wSpin'); }
+    else if (rwTab === 'garden' && (k === 'c' || k === 'Enter')) click('#gCollect');
+    else if (rwTab === 'chests') { if (k === 'o' || k === 'Enter') click('#cqOpen'); else if (k === 'a') click('#cqAll'); }
+    else if ((rwTab === 'quests' || rwTab === 'ach') && k === 'Enter') click($('#rwBody [data-q], #rwBody [data-ach]'));
+  }
+  window.addEventListener('keydown', (ev) => {
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test((ev.target && ev.target.tagName) || '')) return;
+    const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+    if (reveal) { if (k === ' ' || k === 'Enter') ev.preventDefault(); reveal.key(k); return; }
     if (!$('#overlay').hidden) {
-      if (k === 'Escape') { closeModal(); if (screen === 'game' && G && G.S.status !== 'play') { /* stay on result */ } }
-      else if ((k === 'n' || k === 'Enter') && $('#vNext')) { ev.preventDefault(); startLevel(G.idx + 1); }
-      else if (k === 'Enter' && $('#lcGo')) { ev.preventDefault(); closeModal(); renderPanel(); }
-      else if (k === 'r' && G && G.S.status === 'lost') restart();
+      if (k === 'Escape') { closeModal(); return; }
+      if ($('#vMap')) { // level complete
+        if (k === 'n' || k === 'Enter') { ev.preventDefault(); click('#vNext') || click('#vHome'); }
+        else if (k === 'r') click('#vReplay'); else if (k === 'm') click('#vMap'); else if (k === 'h') click('#vHomeBtn') || click('#vHome'); else if (k === 'c') click('#vChests');
+        return;
+      }
+      if (k === 'Enter' && $('#lcGo')) { ev.preventDefault(); closeModal(); renderPanel(); return; }
+      if (k === 'r' && G && G.S.status === 'lost') { restart(); return; }
+      if (k === 'Enter') { const b = $('#modal .btn.gold'); if (b) { ev.preventDefault(); b.click(); } }
+      return;
+    }
+    if (k === '?') { keysSheet(); return; }
+    if (screen === 'title') {
+      const go = { d: '#tDaily', r: '#tRewards', s: '.shop-cta', l: '[data-go="map"]', e: '[data-go="echoes"]', i: '[data-open="help"]', g: '[data-open="settings"]' }[k];
+      if (k === 'Enter' || k === ' ') { ev.preventDefault(); click('#tContinue'); } else if (go) click(go);
       return;
     }
     if (screen !== 'game') {
-      if (k === 'Escape' && screen !== 'title') show('title');
+      if (k === 'Escape' || k === 'Backspace') { ev.preventDefault(); show('title'); return; }
+      if (screen === 'map') mapKey(ev, k);
+      else if (screen === 'shop') tabKeys(ev, k, TAB_NAMES, shopTab, (t) => { shopTab = t; SFX.click(); renderShop(); });
+      else if (screen === 'rewards') rewardsKey(ev, k);
+      else if (screen === 'echoes' && (k === 'ArrowRight' || k === 'ArrowLeft')) { const ks = Object.keys(ECHO_INFO), i = ks.indexOf(echoSel); echoSel = ks[(i + (k === 'ArrowRight' ? 1 : ks.length - 1)) % ks.length]; SFX.click(); renderEchoes(); }
       return;
     }
     if (KEYS[k]) { ev.preventDefault(); move(KEYS[k]); }
@@ -1810,6 +1909,9 @@
     else if (k === 'f') favour();
     else if (k === 'h') toggleHop();
     else if (k === 'o') toggleOracle();
+    else if (k === 'i') hint();
+    else if (k === 'p') { SFX.click(); planSheet(); }
+    else if (k === 'm') { mapSel = G.idx; mapWorld = G.def.world; show('map'); }
     else if (k === 'Escape') { if (G.hop) { G.hop = false; render(); } else pause(); }
   });
   // swipe + hop taps on the board
@@ -1825,6 +1927,7 @@
   $('#btnUndo').onclick = undo; $('#btnRestart').onclick = restart; $('#btnFavour').onclick = favour;
   $('#btnHop').onclick = toggleHop; $('#btnOracle').onclick = toggleOracle; $('#btnHint').onclick = hint;
   $('#btnPause').onclick = () => { SFX.click(); pause(); };
+  $('#btnHome').onclick = () => { SFX.click(); show('title'); };
   $('#planBtn').onclick = () => { if (G) { SFX.click(); planSheet(); } };
   $('#mapPrev').onclick = () => switchWorld(-1); $('#mapNext').onclick = () => switchWorld(1);
   $('#stuckUndo').onclick = undo; $('#stuckRestart').onclick = restart;

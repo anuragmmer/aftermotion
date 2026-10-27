@@ -22,10 +22,24 @@ function put(g, c, ch) { if (!c) throw new Error('no room'); g[c.y][c.x] = ch; r
 function divider(rng, g, x, door) { const H = g.length; for (let y = 1; y < H - 1; y++) g[y][x] = '#'; const y = 1 + Math.floor(rng() * (H - 2)); g[y][x] = door; return { x, y }; }
 function scatter(rng, g, n, x0, x1) { for (let i = 0; i < n; i++) { const c = cellIn(rng, g, x0, x1, 1, g.length - 2); if (c) g[c.y][c.x] = '#'; } }
 
+/* A portal powered by two plates at once: one helper cannot hold both, so the level needs two
+   different holders working together (two echoes, an echo and a crate, a helper and a block). */
+function dualLock(rng, holders, extra) {
+  const W = 10 + Math.floor(rng() * 4), H = 6 + Math.floor(rng() * 3), g = blank(W, H);
+  scatter(rng, g, 3 + Math.floor(rng() * 6), 1, W - 2);
+  put(g, cellIn(rng, g, Math.floor(W / 2), W - 2, 1, H - 2), 'X');
+  put(g, cellIn(rng, g, 1, W - 2, 1, H - 2), 'a');
+  put(g, cellIn(rng, g, 1, W - 2, 1, H - 2), 'b');
+  put(g, cellIn(rng, g, 1, Math.floor(W / 2), 1, H - 2), 'P');
+  holders.forEach((k) => put(g, k === 'o' ? cellIn(rng, g, 2, W - 3, 2, H - 3) : cellIn(rng, g, 1, W - 2, 1, H - 2), k));
+  if (extra) extra(g);
+  return g;
+}
 /* ---------- world recipes: return { map, mode, required, needs, ... } ---------- */
 const RECIPES = {
   // World 7, Echo Chamber: twin Traces and Flicker together, echoes that must escape with you
   7: (rng) => {
+    if (rng() < 0.5) { const kinds = rng() < 0.5 ? ['T', 'T'] : ['T', 'F']; return { map: dualLock(rng, kinds), mode: 'through', required: [], needs: [...new Set(kinds)], core: [...new Set(kinds)], exitLock: ['A', 'B'] }; }
     const W = 9 + Math.floor(rng() * 3), H = 5 + Math.floor(rng() * 2), g = blank(W, H), dx = W - 3 - Math.floor(rng() * 2);
     divider(rng, g, dx, 'A');
     put(g, cellIn(rng, g, dx + 1, W - 2, 1, H - 2), 'X');
@@ -39,6 +53,7 @@ const RECIPES = {
   },
   // World 8, Heavy Rhythm: Trace plus crates, two doors in a row
   8: (rng) => {
+    if (rng() < 0.4) return { map: dualLock(rng, ['T', 'o']), mode: 'through', required: [], needs: ['T', 'crate'], core: ['T', 'crate'], exitLock: ['A', 'B'] };
     const W = 10 + Math.floor(rng() * 3), H = 6 + Math.floor(rng() * 2), g = blank(W, H);
     const d1 = 4 + Math.floor(rng() * 2), d2 = W - 3;
     divider(rng, g, d1, 'A'); divider(rng, g, d2, 'B');
@@ -55,6 +70,19 @@ const RECIPES = {
   },
   // World 9, Quicksilver: Flicker hops into sealed pockets, coins for Favour, tight move limits
   9: (rng) => {
+    if (rng() < 0.5) {
+      // plate a sealed in a pocket only a hop reaches, plate b for a crate (or Trace)
+      const other = rng() < 0.6 ? 'o' : 'T';
+      const g = dualLock(rng, ['F', other], (g2) => {
+        const H2 = g2.length, W2 = g2[0].length, px = 2 + Math.floor(rng() * (W2 - 4)), py = 2 + Math.floor(rng() * (H2 - 4));
+        for (let y = py - 1; y <= py + 1; y++) for (let x = px - 1; x <= px + 1; x++) if (!/[PXFTo]/.test(g2[y][x])) g2[y][x] = '#';
+        for (let y = 1; y < H2 - 1; y++) for (let x = 1; x < W2 - 1; x++) if (g2[y][x] === 'a' && (x !== px || y !== py)) g2[y][x] = '.';
+        g2[py][px] = 'a';
+      });
+      if (!g.some((r) => r.includes('a'))) return null;
+      const needs = other === 'o' ? ['F', 'hop', 'crate'] : ['F', 'hop', 'T'];
+      return { map: g, mode: 'through', required: [], needs, core: needs, exitLock: ['A', 'B'] };
+    }
     const W = 11 + Math.floor(rng() * 3), H = 6 + Math.floor(rng() * 2), g = blank(W, H), dx = W - 3, crate = rng() < 0.6, d0 = 5 + Math.floor(rng() * 2);
     divider(rng, g, dx, 'A');
     if (crate) divider(rng, g, d0, 'B');
@@ -74,6 +102,7 @@ const RECIPES = {
   },
   // World 10, Workshop: Mason and Keeper hold plates for each other
   10: (rng) => {
+    if (rng() < 0.6) return { map: dualLock(rng, ['M', 'K']), mode: 'through', required: [], needs: ['M', 'K'], core: ['M', 'K'], exitLock: ['A', 'B'] };
     const W = 11 + Math.floor(rng() * 3), H = 6 + Math.floor(rng() * 2), g = blank(W, H);
     const d1 = 4 + Math.floor(rng() * 3), d2 = W - 3, both = rng() < 0.85;
     divider(rng, g, d2, 'A'); if (both) divider(rng, g, d1, 'B');
@@ -90,6 +119,11 @@ const RECIPES = {
   },
   // World 11, Storm Front: the Blocker interferes while echoes and crates hold the doors
   11: (rng) => {
+    if (rng() < 0.5) {
+      const pair = [['T', 'o'], ['M', 'K'], ['F', 'o'], ['T', 'M'], ['F', 'K']][Math.floor(rng() * 5)];
+      const needs = pair.map((k) => (k === 'o' ? 'crate' : k));
+      return { map: dualLock(rng, pair.concat('Z')), mode: 'through', required: [], needs, core: needs, exitLock: ['A', 'B'], enemy: true };
+    }
     const W = 10 + Math.floor(rng() * 3), H = 6 + Math.floor(rng() * 2), g = blank(W, H), dx = W - 3;
     divider(rng, g, dx, 'A');
     put(g, cellIn(rng, g, dx + 1, W - 2, 1, H - 2), 'X');
@@ -107,8 +141,10 @@ const RECIPES = {
 function candidate(world, rng) {
   let r;
   try { r = RECIPES[world](rng); } catch (e) { return null; }
+  if (!r) return null;
   const def = { id: 0, name: 'gen', map: r.map.map((row) => row.join('')), mode: r.mode, required: r.required, needs: r.needs };
   if (r.luck0) def.luck0 = r.luck0;
+  if (r.exitLock) def.exitLock = r.exitLock;
   if (r.coins) def.needs = def.needs.concat('favour');
   // time-boxed: anything the solver cannot settle quickly is skipped (it would be too slow to verify)
   const s = solve(def, 400000, 6000);
@@ -201,6 +237,7 @@ function apply() {
       const def = Object.assign({}, d, { id, solution: enc });
       const f2 = [`id: ${id}`, `world: ${w}`, `name: ${q(M.names[i])}`, `par: ${d.par}`, `mode: ${q(d.mode)}`];
       if (d.required && d.required.length) f2.push(`required: [${d.required.join(', ')}]`);
+      if (d.exitLock) f2.push(`exitLock: [${d.exitLock.map(q).join(', ')}]`);
       if (d.luck0) f2.push(`luck0: ${d.luck0}`);
       if (i >= 7 && w >= 9) f2.push(`maxMoves: ${d.par + 3}`);
       f2.push(`needs: [${d.needs.map(q).join(', ')}]`);

@@ -9,8 +9,8 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23120d2b'/%3E%3Ccircle cx='11' cy='16' r='6' fill='none' stroke='%23ffc24b' stroke-width='2.5' stroke-dasharray='3 2'/%3E%3Ccircle cx='21' cy='16' r='6' fill='%234fe3ff'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;700;800;900&display=swap">
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/style.css?v=2026-10-27b">
 </head>
 <body>
 <svg class="sprite" width="0" height="0" aria-hidden="true" focusable="false">
@@ -38,6 +38,7 @@
     <symbol id="i-clover" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="8.6" cy="8.6" r="4.2"/><circle cx="15.4" cy="8.6" r="4.2"/><circle cx="8.6" cy="15.4" r="4.2"/><circle cx="15.4" cy="15.4" r="4.2"/></g><path d="M12 12c2 4 3 7 6 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
     <symbol id="i-gift" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round"><rect x="3" y="9" width="18" height="12" rx="1.5"/><path d="M2 9h20M12 9v12"/><path d="M12 9c-2-5-7-5-7-2s5 2 7 2zM12 9c2-5 7-5 7-2s-5 2-7 2z"/></g></symbol>
     <symbol id="i-wheel" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/></g><circle cx="12" cy="12" r="2.4" fill="currentColor"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h5v-6h4v6h5V10"/></g></symbol>
     <symbol id="i-sound" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 010 6M18.5 6.5a8 8 0 010 11"/></g></symbol>
   </defs>
 </svg>
@@ -51,33 +52,33 @@
     <div class="trail-dots" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
     <h1 class="logo">AFTERMOTION<span class="ghost g3" aria-hidden="true">AFTERMOTION</span><span class="ghost g2" aria-hidden="true">AFTERMOTION</span><span class="ghost g1" aria-hidden="true">AFTERMOTION</span></h1>
     <p class="tagline">Every move echoes. Only the first one counts.</p>
-    <button id="tContinue" class="cta"><svg><use href="#i-play"/></svg><span id="tContinueLabel">Play</span></button>
+    <button id="tContinue" class="cta"><svg><use href="#i-play"/></svg><span id="tContinueLabel">Play</span><kbd>Enter</kbd></button>
     <div class="daily-row">
-      <button class="daily-card" id="tDaily"><span class="dc-ico"><svg><use href="#i-flame"/></svg></span><span class="dc-txt"><b>Daily Echo</b><small id="tDailySub"></small></span><span class="streak" id="tStreak"></span></button>
-      <button class="chest-card" id="tRewards" data-go="rewards"><span class="dc-ico chest"><svg><use href="#i-gift"/></svg></span><span class="dc-txt"><b id="tRewardsTitle">Rewards</b><small id="tRewardsSub"></small></span><span class="badge" id="tRewardsBadge" hidden></span></button>
+      <button class="daily-card" id="tDaily"><span class="dc-ico"><svg><use href="#i-flame"/></svg></span><span class="dc-txt"><b>Daily Echo <kbd>D</kbd></b><small id="tDailySub"></small></span><span class="streak" id="tStreak"></span></button>
+      <button class="chest-card" id="tRewards" data-go="rewards"><span class="dc-ico chest"><svg><use href="#i-gift"/></svg></span><span class="dc-txt"><b><span id="tRewardsTitle">Rewards</span> <kbd>R</kbd></b><small id="tRewardsSub"></small></span><span class="badge" id="tRewardsBadge" hidden></span></button>
     </div>
-    <button class="shop-cta" data-go="shop"><span class="dc-ico shopi"><svg><use href="#i-bag"/></svg></span><span class="dc-txt"><b>Shop &amp; unlocks</b><small id="tShopSub"></small></span><span class="shop-new" id="tShopNew" hidden>NEW</span></button>
+    <button class="shop-cta" data-go="shop"><span class="dc-ico shopi"><svg><use href="#i-bag"/></svg></span><span class="dc-txt"><b>Shop &amp; unlocks <kbd>S</kbd></b><small id="tShopSub"></small></span><span class="shop-new" id="tShopNew" hidden>NEW</span></button>
     <div class="menu-grid">
-      <button class="mbtn" data-go="map"><span class="mi" style="background:#4fe3ff"><svg><use href="#i-map"/></svg></span>Levels<small id="tStars"></small></button>
-      <button class="mbtn" data-go="echoes"><span class="mi ring-ico"></span>Echoes<small id="tEchoes"></small></button>
-      <button class="mbtn" data-open="help"><span class="mi" style="background:#ff5c8a"><svg><use href="#i-help"/></svg></span>How to play</button>
-      <button class="mbtn" data-open="settings"><span class="mi" style="background:#2c2266"><svg><use href="#i-gear"/></svg></span>Settings</button>
+      <button class="mbtn" data-go="map"><span class="mi" style="background:#4fe3ff"><svg><use href="#i-map"/></svg></span>Levels <kbd>L</kbd><small id="tStars"></small></button>
+      <button class="mbtn" data-go="echoes"><span class="mi ring-ico"></span>Echoes <kbd>E</kbd><small id="tEchoes"></small></button>
+      <button class="mbtn" data-open="help"><span class="mi" style="background:#ff5c8a"><svg><use href="#i-help"/></svg></span>How to play <kbd>I</kbd></button>
+      <button class="mbtn" data-open="settings"><span class="mi" style="background:#2c2266"><svg><use href="#i-gear"/></svg></span>Settings <kbd>G</kbd></button>
     </div>
   </div>
   <div class="title-foot">
     <div class="pills"><span class="pill"><i class="coin-ico"></i><b class="coinCount">0</b></span><span class="pill"><svg class="star-ico"><use href="#i-star"/></svg><b id="tStarCount">0</b></span><button class="pill clover-pill" id="tClover" aria-label="Clover luck"><svg><use href="#i-clover"/></svg><b class="cloverCount">0</b></button></div>
-    <span class="dim small" id="tFoot"></span>
+    <span class="dim small"><span id="tFoot"></span><span class="keys-hint"> · press <kbd>?</kbd> for keyboard shortcuts</span></span>
   </div>
 </section>
 
 <!-- MAP -->
 <section id="map" class="screen" hidden>
   <header class="bar">
-    <button class="icon-btn" data-go="title" aria-label="Home"><svg><use href="#i-back"/></svg></button>
+    <button class="icon-btn home-btn" data-go="title" aria-label="Home (Esc)" title="Home (Esc)"><svg><use href="#i-home"/></svg><span>Home</span><kbd>Esc</kbd></button>
     <div class="bar-title"><small id="mapKicker"></small><b class="disp" id="mapName"></b></div>
     <div class="world-nav">
-      <button class="icon-btn" id="mapPrev" aria-label="Previous world"><svg><use href="#i-back"/></svg></button>
-      <button class="icon-btn" id="mapNext" aria-label="Next world"><svg style="transform:rotate(180deg)"><use href="#i-back"/></svg></button>
+      <button class="icon-btn" id="mapPrev" aria-label="Previous world (Q)" title="Previous world (Q)"><svg><use href="#i-back"/></svg></button>
+      <button class="icon-btn" id="mapNext" aria-label="Next world (E)" title="Next world (E)"><svg style="transform:rotate(180deg)"><use href="#i-back"/></svg></button>
     </div>
     <span class="pill"><i class="coin-ico"></i><b class="coinCount">0</b></span>
   </header>
@@ -94,7 +95,7 @@
 <!-- SHOP -->
 <section id="shop" class="screen" hidden>
   <header class="bar">
-    <button class="icon-btn" data-go="title" aria-label="Home"><svg><use href="#i-back"/></svg></button>
+    <button class="icon-btn home-btn" data-go="title" aria-label="Home (Esc)" title="Home (Esc)"><svg><use href="#i-home"/></svg><span>Home</span><kbd>Esc</kbd></button>
     <div class="bar-title"><small id="shopKicker">SPEND COINS · EARN EXCLUSIVES</small><b class="disp">Shop &amp; unlocks</b></div>
     <span class="pill"><i class="coin-ico"></i><b class="coinCount">0</b></span>
   </header>
@@ -108,7 +109,7 @@
 <!-- ECHOES -->
 <section id="echoes" class="screen" hidden>
   <header class="bar">
-    <button class="icon-btn" data-go="title" aria-label="Home"><svg><use href="#i-back"/></svg></button>
+    <button class="icon-btn home-btn" data-go="title" aria-label="Home (Esc)" title="Home (Esc)"><svg><use href="#i-home"/></svg><span>Home</span><kbd>Esc</kbd></button>
     <div class="bar-title"><small id="eCount"></small><b class="disp">Echoes</b></div>
     <span class="pill"><i class="coin-ico"></i><b class="coinCount">0</b></span>
   </header>
@@ -121,7 +122,7 @@
 <!-- REWARDS -->
 <section id="rewards" class="screen" hidden>
   <header class="bar">
-    <button class="icon-btn" data-go="title" aria-label="Home"><svg><use href="#i-back"/></svg></button>
+    <button class="icon-btn home-btn" data-go="title" aria-label="Home (Esc)" title="Home (Esc)"><svg><use href="#i-home"/></svg><span>Home</span><kbd>Esc</kbd></button>
     <div class="bar-title"><small id="rwKicker">QUESTS · WHEEL · CHESTS · ACHIEVEMENTS</small><b class="disp">Rewards</b></div>
     <span class="pill"><i class="coin-ico"></i><b class="coinCount">0</b></span>
   </header>
@@ -134,7 +135,8 @@
 <!-- GAME -->
 <section id="game" class="screen" hidden>
   <header class="bar game-bar">
-    <button class="icon-btn" id="btnPause" aria-label="Pause (Esc)"><svg><use href="#i-pause"/></svg></button>
+    <button class="icon-btn" id="btnPause" aria-label="Pause (Esc)" title="Pause (Esc)"><svg><use href="#i-pause"/></svg></button>
+    <button class="icon-btn" id="btnHome" aria-label="Home" title="Home"><svg><use href="#i-home"/></svg></button>
     <div class="bar-title"><small id="gWorld"></small><b class="disp" id="gName"></b></div>
     <div class="star-meter">
       <div class="stars" id="gStars"></div>
@@ -157,12 +159,12 @@
         </div>
       </div>
       <div class="actions">
-        <button class="btn" id="btnUndo" title="Undo (Z)"><svg><use href="#i-undo"/></svg><span>Undo</span></button>
-        <button class="btn" id="btnRestart" title="Restart (R)"><svg><use href="#i-restart"/></svg><span>Restart</span></button>
-        <button class="btn favour" id="btnFavour" title="Favour (F)"><span class="luck-ring"><svg><use href="#i-bolt"/></svg></span><span>Favour</span></button>
-        <button class="btn" id="btnHop" title="Hop (H)"><svg><use href="#i-hop"/></svg><span>Hop</span></button>
-        <button class="btn" id="btnOracle" title="Oracle (O)" aria-pressed="false"><svg><use href="#i-eye"/></svg><span>Oracle</span></button>
-        <button class="btn" id="btnHint" title="Hint"><svg><use href="#i-bulb"/></svg><span id="hintLabel">Hint</span></button>
+        <button class="btn" id="btnUndo" title="Undo (Z)"><svg><use href="#i-undo"/></svg><span>Undo</span><kbd>Z</kbd></button>
+        <button class="btn" id="btnRestart" title="Restart (R)"><svg><use href="#i-restart"/></svg><span>Restart</span><kbd>R</kbd></button>
+        <button class="btn favour" id="btnFavour" title="Favour (F)"><span class="luck-ring"><svg><use href="#i-bolt"/></svg></span><span>Favour</span><kbd>F</kbd></button>
+        <button class="btn" id="btnHop" title="Hop (H)"><svg><use href="#i-hop"/></svg><span>Hop</span><kbd>H</kbd></button>
+        <button class="btn" id="btnOracle" title="Oracle (O)" aria-pressed="false"><svg><use href="#i-eye"/></svg><span>Oracle</span><kbd>O</kbd></button>
+        <button class="btn" id="btnHint" title="Hint"><svg><use href="#i-bulb"/></svg><span id="hintLabel">Hint</span><kbd>I</kbd></button>
         <button class="btn boost" id="btnMoves" title="Use a +3 moves boost" hidden><svg><use href="#i-plus"/></svg><span id="movesLabel">+3 moves</span></button>
         <button class="btn boost" id="btnLuck" title="Use a Lucky charm" hidden><svg><use href="#i-bolt"/></svg><span id="luckLabel">Lucky charm</span></button>
         <button class="btn boost" id="btnSkip" title="Use a Skip ticket" hidden><svg><use href="#i-skip"/></svg><span id="skipLabel">Skip</span></button>
@@ -174,7 +176,7 @@
       <div class="coach" id="coach" aria-live="polite">
         <div class="coach-ico" aria-hidden="true"><svg><use href="#i-bulb"/></svg></div>
         <div class="coach-body">
-          <div class="coach-head"><span class="coach-tag" id="coachTag">COACH</span><button class="plan-btn" id="planBtn">Plan</button></div>
+          <div class="coach-head"><span class="coach-tag" id="coachTag">COACH</span><button class="plan-btn" id="planBtn">Plan <kbd>P</kbd></button></div>
           <b id="coachWhat"></b>
           <div id="coachNext"></div>
         </div>
@@ -200,17 +202,17 @@
 <div id="fx" class="fx-layer" aria-hidden="true"></div>
 <div id="reveal" class="reveal" hidden></div>
 
-<script src="js/engine.js"></script>
-<script src="js/levels.js"></script>
-<script src="js/progress.js"></script>
-<script src="js/characters.js"></script>
-<script src="js/cosmetics.js"></script>
-<script src="js/shop.js"></script>
-<script src="js/rewards.js"></script>
-<script src="js/extras.js"></script>
-<script src="js/demos.js"></script>
-<script src="js/audio.js"></script>
-<script src="js/ambient.js"></script>
-<script src="js/main.js"></script>
+<script src="js/engine.js?v=2026-10-27b"></script>
+<script src="js/levels.js?v=2026-10-27b"></script>
+<script src="js/progress.js?v=2026-10-27b"></script>
+<script src="js/characters.js?v=2026-10-27b"></script>
+<script src="js/cosmetics.js?v=2026-10-27b"></script>
+<script src="js/shop.js?v=2026-10-27b"></script>
+<script src="js/rewards.js?v=2026-10-27b"></script>
+<script src="js/extras.js?v=2026-10-27b"></script>
+<script src="js/demos.js?v=2026-10-27b"></script>
+<script src="js/audio.js?v=2026-10-27b"></script>
+<script src="js/ambient.js?v=2026-10-27b"></script>
+<script src="js/main.js?v=2026-10-27b"></script>
 </body>
 </html>
