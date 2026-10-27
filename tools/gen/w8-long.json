@@ -6905,5 +6905,32 @@
   "par": 24,
   "states": 29732,
   "path": "UUURDUURRRRRDURRDLULDURL"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "###########",
+   "#T....##..#",
+   "#....o....#",
+   "#.Pb#...#.#",
+   "#...a.....#",
+   "#.........#",
+   "#....X....#",
+   "###########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T",
+   "crate"
+  ],
+  "exitLock": [
+   "A",
+   "B"
+  ],
+  "par": 16,
+  "states": 25350,
+  "path": "RUURRDUDDURDDLDD"
  }
 ]
