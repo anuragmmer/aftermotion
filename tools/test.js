@@ -172,13 +172,6 @@ t('Daily echo: one reward per day, streak grows on consecutive days and resets a
   assert.strictEqual(P.dailyStatus(prog, '2026-10-30').streak, 0, 'missed a day');
   assert.strictEqual(P.applyDaily(prog, '2026-10-30', false).streak, 1);
 });
-t('Star chests: one per 10 stars, increasing value, cannot double-open', () => {
-  const prog = P.defaults();
-  for (let i = 0; i < 7; i++) P.applyClear(prog, LEVELS[i], { moves: LEVELS[i].par, collected: 0 }, 0); // 21 stars
-  assert.strictEqual(P.chestsAvailable(prog), 2);
-  assert.strictEqual(P.openChest(prog), 50); assert.strictEqual(P.openChest(prog), 75); assert.strictEqual(P.openChest(prog), 0);
-  assert.strictEqual(P.nextChestAt(prog), 30);
-});
 const Shop = require('../js/shop.js');
 t('Shop: defaults owned, buying cosmetics and boosts, equipping, milestones', () => {
   const prog = Shop.init(P.defaults());

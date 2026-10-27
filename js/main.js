@@ -24,7 +24,7 @@
     return l ? l.id : null;
   };
 
-  let prog = Shop.init(P.load());
+  let prog = R.init(P.load());
   let screen = 'title', G = null, mapSel = null, echoSel = 'trace';
   const board = $('#board'), frame = $('#frame');
   let tileEls = [], actorsEl = null, actorEls = new Map(), checkToken = 0;
@@ -33,7 +33,24 @@
   const anim = (el, frames, opts) => { if (!el || reduced() || !el.animate) return null; return el.animate(frames, Object.assign({ duration: 200, easing: 'ease-out' }, opts)); };
   const buzz = (ms) => { try { if (!reduced() && navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* unsupported */ } };
   function persist() { P.save(prog); }
-  function coins() { $$('.coinCount').forEach((el) => (el.textContent = prog.coins.toLocaleString('en-US'))); }
+  function coins() { $$('.coinCount').forEach((el) => (el.textContent = prog.coins.toLocaleString('en-US'))); cloverUI(); }
+  /* Clover: the lasting Luck meter. Echo steps and coins fill it, bumping echoes into walls drains it. */
+  function cloverUI() {
+    const full = R.luckFull(prog);
+    $$('.cloverCount').forEach((el) => (el.textContent = prog.luck));
+    $('#cloverFill').style.width = prog.luck + '%';
+    $('#cloverMeter').classList.toggle('full', full); $('#tClover').classList.toggle('full', full);
+  }
+  function cloverInfo() {
+    openModal('<div class="kicker">LASTING LUCK</div><h2><svg class="h-ico" style="color:var(--mint)"><use href="#i-clover"/></svg> Clover ' + prog.luck + ' / 100</h2>' +
+      '<div class="bar2 big"><i style="width:' + prog.luck + '%"></i></div>' +
+      '<p>Clover is luck you keep between levels. It grows when you treat your echoes well, and fills the same way in every level.</p>' +
+      '<ul class="help-list"><li><b style="color:var(--mint)">+' + R.LUCK.step + '</b> every time an echo takes a step</li><li><b style="color:var(--mint)">+' + R.LUCK.coin + '</b> for each coin you collect in a level</li>' +
+      '<li><b style="color:var(--mint)">+' + R.LUCK.gentle + '</b> for clearing a level with no echo bumps</li><li><b style="color:var(--pink)">' + R.LUCK.bump + '</b> each time an echo walks into a wall, door or block</li>' +
+      '<li>Undo takes back what the undone move gave or cost.</li></ul>' +
+      '<p><b>When Clover is full</b> a banner appears on the board: tap it (or Favour) in <b>any level with echoes</b> for a free Favour. Echoes act twice as often for ' + AM.CONFIG.favourDuration + ' moves.</p>' +
+      '<div class="row"><button class="btn gold big" id="clOk">Got it</button></div>', () => on('clOk', closeModal));
+  }
   function applySettings() {
     SFX.setEnabled(!!prog.sound); document.body.classList.toggle('reduce', !!prog.reduceMotion);
     Shop.SLOTS.forEach((k) => (document.body.dataset[k] = prog.equip[k]));
@@ -75,7 +92,7 @@
   }
   function show(name) {
     screen = name;
-    if (name === 'title' || name === 'echoes') setTheme('');
+    if (name === 'title' || name === 'echoes' || name === 'rewards') setTheme('');
     if (name === 'map') setTheme('w' + (mapWorld || LEVELS[P.nextLevelIndex(prog, LEVELS)].world));
     $$('.screen').forEach((s) => (s.hidden = s.id !== name));
     closeModal();
@@ -84,6 +101,7 @@
     if (name === 'map') renderMap();
     if (name === 'echoes') renderEchoes();
     if (name === 'shop') renderShop();
+    if (name === 'rewards') renderRewards();
     window.scrollTo(0, 0);
   }
 
@@ -100,14 +118,17 @@
     dc.classList.toggle('ready', di >= 0 && !ds.done); dc.classList.toggle('done', ds.done);
     $('#tDailySub').textContent = di < 0 ? 'Clear level 1 to unlock' : ds.done ? 'Done for today. Back tomorrow!' : 'Today: ' + LEVELS[di].name + ' · reach par for ×2';
     $('#tStreak').innerHTML = ds.streak ? '<svg style="color:var(--gold)"><use href="#i-flame"/></svg>' + ds.streak : '';
-    const ch = P.chestsAvailable(prog), stars = P.totalStars(prog), nextAt = P.nextChestAt(prog);
-    $('#tChest').classList.toggle('ready', ch > 0);
-    $('#tChestTitle').textContent = ch > 0 ? (ch > 1 ? ch + ' chests ready!' : 'Chest ready!') : 'Star chest';
-    $('#tChestSub').textContent = ch > 0 ? 'Tap to open' : stars + ' / ' + nextAt + '★ for the next chest';
+    R.ensureQuests(prog, day);
+    const spins = R.spinsAvailable(prog, day), chests = prog.chestQueue.length, claim = R.claimableCount(prog, LEVELS, day), n = spins + chests + claim;
+    const qDone = prog.quests.list.filter((q) => q.claimed).length;
+    $('#tRewards').classList.toggle('ready', n > 0);
+    $('#tRewardsBadge').hidden = !n; $('#tRewardsBadge').textContent = n;
+    $('#tRewardsSub').textContent = n ? [chests ? plural(chests, 'chest') : '', spins ? plural(spins, 'spin') : '', claim ? claim + ' to claim' : ''].filter(Boolean).join(' · ')
+      : 'Quests ' + qDone + '/3 · free spin in ' + untilTomorrow();
+    $('#tFoot').textContent = WORLDS.length + ' worlds · ' + LEVELS.length + ' levels';
     const goal = Shop.nextGoal(prog, LEVELS);
     $('#tShopSub').textContent = goal ? 'Next: ' + goal.text : 'Everything unlocked!';
     $('#tShopNew').hidden = !(goal && goal.ready);
-    $('#tChestFill').style.width = ch > 0 ? '100%' : Math.round(((stars - (nextAt - P.CHEST_STARS)) / P.CHEST_STARS) * 100) + '%';
   }
   function playDaily() {
     const day = today(), di = P.dailyLevelIndex(prog, LEVELS, day), ds = P.dailyStatus(prog, day);
@@ -115,15 +136,11 @@
     if (ds.done) { toast('You already played today\'s Daily Echo. Streak: ' + ds.streak + '. Come back tomorrow!'); return; }
     SFX.click(); startLevel(di, { daily: true });
   }
-  function openChestModal() {
-    if (!P.chestsAvailable(prog)) { toast('Earn ' + (P.nextChestAt(prog) - P.totalStars(prog)) + ' more stars to fill the next chest.'); return; }
-    const coins = P.openChest(prog); persist(); SFX.win(); buzz([30, 30, 60]);
-    openModal('<div class="kicker">STAR CHEST</div><div class="chest-big"><svg><use href="#i-chest"/></svg></div><h2 class="win-title">+' + coins + ' coins</h2>' +
-      '<p>A chest every ' + P.CHEST_STARS + ' stars. Next at ' + P.nextChestAt(prog) + '★.</p><div class="row"><button class="btn gold big" id="chOk">Nice!</button></div>', () => {
-      confetti();
-      on('chOk', () => { closeModal(); renderTitle(); });
-    });
-    coins();
+  /* Time left until the daily reset (quests, free spin, Daily Echo all roll over at 00:00 UTC). */
+  function untilTomorrow() {
+    const now = new Date(), t = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1) - now.getTime();
+    const h = Math.floor(t / 3600000), m = Math.floor((t % 3600000) / 60000);
+    return h ? h + 'h ' + m + 'm' : m + 'm';
   }
 
   /* ---------- map ---------- */
@@ -210,6 +227,7 @@
       '<p class="dim small" style="margin:0">' + esc(l.intro) + '</p>' +
       '<div class="small">Par <b>' + (l.par || '—') + '</b>' + (rec && rec.best !== null ? ' · Best <b>' + rec.best + '</b>' : '') + '</div>' +
       '<div class="small dim">' + (rec && rec.clears ? esc(P.nextReplayInfo(P.record(prog, l.id), Date.now())) : 'First clear pays up to ' + maxFirst + ' coins.') + '</div>' +
+      (unlocked ? '' : '<p class="small lock-why"><svg><use href="#i-lock"/></svg>Clear level ' + LEVELS[i - 1].id + ' (or skip it with a Skip ticket from the Shop) to unlock this level.</p>') +
       '<button class="btn gold big" id="mapPlay"' + (unlocked ? '' : ' disabled') + '><svg><use href="#i-play"/></svg>' + (unlocked ? (rec && rec.clears ? 'Replay' : 'Play') : 'Locked') + '</button>';
     $('#mapPlay').onclick = () => startLevel(i);
   }
@@ -242,7 +260,7 @@
   function startLevel(i, opts) {
     const def = LEVELS[i], r = AM.loadLevel(def);
     const daily = !!(opts && opts.daily) || !!(opts && opts.restart && G && G.daily);
-    G = { daily, react: def.id % 5 === 0, idx: i, def, L: r.level, S: r.state, undo: [], log: [], hop: false, oracle: G ? G.oracle : false, usedHint: false, hint: null, trail: [], startCoins: r.state.coins.length, movesUsed: false, luckUsed: false };
+    G = { daily, react: def.id % 5 === 0, idx: i, def, L: r.level, S: r.state, undo: [], log: [], hop: false, oracle: G ? G.oracle : false, usedHint: false, hint: null, trail: [], startCoins: r.state.coins.length, movesUsed: false, luckUsed: false, bumps: 0, steps: 0, favours: 0, undos: 0 };
     r.state.echoes.forEach((e) => (prog.seen[e.type] = true));
     if (r.state.enemy) prog.seen.blocker = true;
     persist();
@@ -482,6 +500,8 @@
     renderPanel();
   }
 
+  // Full Clover can pay for Favour whenever some echo can accept it and the level's Luck cannot.
+  const cloverReady = () => G && G.S.status === 'play' && R.luckFull(prog) && !AM.favourReady(G.S) && AM.favourReady(Object.assign({}, G.S, { luck: AM.CONFIG.favourCost }));
   function hopper() { return G.S.echoes.find((e) => e.hop && !e.hopping && e.hop.charges > 0 && e.state !== 'COOLDOWN'); }
 
   /* ---------- side panel ---------- */
@@ -536,11 +556,13 @@
     if (total) g.push({ done: got === total, text: 'Coins ' + got + ' / ' + total + ' (optional)' });
     $('#goals').innerHTML = g.map((q) => '<div class="goal' + (q.done ? ' done' : '') + '"><i>' + (q.done ? '✓' : '') + '</i>' + esc(q.text) + '</div>').join('');
     // buttons
-    const hasLuck = G.startCoins > 0 || L.luck0 > 0;
-    $('#btnFavour').hidden = !hasLuck || !S.echoes.length;
-    $('#btnFavour').style.setProperty('--p', S.luck);
-    $('#btnFavour').classList.toggle('ready', AM.favourReady(S));
-    $('#btnFavour').title = 'Favour (F) · Luck ' + S.luck + '/100';
+    const hasLuck = G.startCoins > 0 || L.luck0 > 0, cr = cloverReady();
+    $('#btnFavour').hidden = !S.echoes.length || !(hasLuck || cr);
+    $('#btnFavour').style.setProperty('--p', cr ? 100 : S.luck);
+    $('#btnFavour').classList.toggle('ready', AM.favourReady(S) || cr);
+    $('#btnFavour').classList.toggle('clover', cr);
+    $('#btnFavour').title = cr ? 'Favour (F) · paid by your full Clover' : 'Favour (F) · Luck ' + S.luck + '/100';
+    $('#cloverBanner').hidden = !cr;
     $('#btnHop').hidden = !S.echoes.some((e) => e.hop);
     $('#btnHop').classList.toggle('on', G.hop);
     $('#btnHop').disabled = !hopper() && !G.hop;
@@ -653,7 +675,8 @@
   }
   function explain(prev, next, events, meta) {
     const out = [], add = (h, c, pri) => out.push({ h, c: c || '', p: pri || 3 });
-    if (meta.kind === 'favour') add('Favour is on! From their next group, echoes use groups of 2 instead of 4, so they act twice as often.', 'gold', 1);
+    if (meta.kind === 'favour' && meta.clover) add('Clover Favour! Your full Clover paid for it. From their next group, echoes use groups of 2 instead of 4, so they act twice as often.', 'gold', 1);
+    else if (meta.kind === 'favour') add('Favour is on! From their next group, echoes use groups of 2 instead of 4, so they act twice as often.', 'gold', 1);
     for (const ev of events) {
       const e = ev.echo ? next.echoes.find((q) => q.id === ev.echo) : null;
       const pe = ev.echo ? prev.echoes.find((q) => q.id === ev.echo) : null;
@@ -664,7 +687,7 @@
         case 'ECHO_BLOCKED':
           if (walker(e)) {
             const r = { wall: 'a wall', 'closed door': 'a closed door', block: 'a block' }[(ev.text.match(/blocked by (.*)\./) || [])[1]] || 'something';
-            add(nm(e) + ' tried to step ' + arr(hd, true) + ' (the first of ' + seq(batch) + '), but ' + r + ' is in the way, so it stayed put. The group is used up anyway.', 'bad', 1);
+            add(nm(e) + ' tried to step ' + arr(hd, true) + ' (the first of ' + seq(batch) + '), but ' + r + ' is in the way, so it stayed put. The group is used up anyway, and the bump cost ' + (-R.LUCK.bump) + ' Clover.', 'bad', 1);
           } else if (e.type === 'mason') {
             add(/no charges/.test(ev.text) ? 'Mason has no blocks left to build.' : 'Mason could not build ' + arr(hd, true) + ': ' + esc((ev.text.match(/\((.*)\)/) || [])[1] || 'that tile is taken') + '. No block was used.', 'bad', 1);
           } else if (e.type === 'keeper') {
@@ -786,7 +809,7 @@
   function commit(next, events, meta) {
     wake();
     const prev = G.S;
-    G.undo.push({ S: prev, trail: G.trail.slice(1) });
+    G.undo.push({ S: prev, trail: G.trail.slice(1), d: tally(events, meta) });
     if (G.undo.length > 400) G.undo.shift();
     G.S = next; G.hint = null;
     say(explain(prev, next, events, meta));
@@ -799,16 +822,47 @@
   }
   function undo() {
     if (busy() || !G.undo.length) return;
-    const u = G.undo.pop(); G.S = u.S; G.trail = u.trail; G.hint = null; G.hop = false;
+    const u = G.undo.pop(); G.S = u.S; G.trail = u.trail; G.hint = null; G.hop = false; untally(u.d); G.undos++;
     say([{ h: 'Rewound one move.', c: '' }]);
     SFX.undo(); render(); checkStuck();
+  }
+  /* Lasting effects of one command (Clover, stats); undo reverses exactly these, so luck cannot be
+     farmed by moving and undoing. Quests count net totals when the level is cleared. */
+  function tally(events, meta) {
+    const st = prog.stats, d = { luck: 0, steps: 0, bumps: 0, moves: meta.kind === 'move' ? 1 : 0, fav: meta.kind === 'favour' ? 1 : 0 };
+    d.steps = events.filter((e) => e.type === 'ECHO_MOVED').length;
+    d.bumps = events.filter((e) => e.type === 'ECHO_BLOCKED' && /tries/.test(e.text)).length;
+    d.luck = R.addLuck(prog, R.luckFromEvents(events)) - (meta.clover ? R.LUCK.cost : 0);
+    if (d.fav && !meta.clover) st.favours++; // spendLuck already counted clover favours
+    st.echoSteps += d.steps; st.echoBumps += d.bumps; st.moves += d.moves;
+    G.steps += d.steps; G.bumps += d.bumps; G.favours += d.fav;
+    persist();
+    return d;
+  }
+  function untally(d) {
+    if (!d) return;
+    const st = prog.stats;
+    prog.luck = Math.max(0, Math.min(R.LUCK.max, prog.luck - d.luck));
+    st.echoSteps -= d.steps; st.echoBumps -= d.bumps; st.moves -= d.moves; st.favours -= d.fav;
+    G.steps -= d.steps; G.bumps -= d.bumps; G.favours -= d.fav;
+    persist();
   }
   function restart() { if (G) { SFX.undo(); startLevel(G.idx, { restart: true }); } }
   function favour() {
     if (busy()) return;
-    const r = AM.activateFavour(G.L, G.S);
-    if (!r.ok) { toast(r.events[0].text); SFX.echoBlocked(); return; }
-    SFX.favour(); commit(r.state, r.events, { kind: 'favour' });
+    let r = AM.activateFavour(G.L, G.S), clover = false;
+    if (!r.ok && cloverReady()) {
+      // the level's own Luck is not full, so full Clover pays for this Favour instead
+      const S2 = AM.clone(G.S); S2.luck = AM.CONFIG.favourCost;
+      r = AM.activateFavour(G.L, S2);
+      if (r.ok) { r.state.luck = G.S.luck; clover = true; R.spendLuck(prog); }
+    }
+    if (!r.ok) {
+      toast(G.S.luck < AM.CONFIG.favourCost ? 'Favour needs 100 Luck. Collect coins in this level, or fill your Clover (' + prog.luck + '/100) by letting echoes walk without bumping.' : r.events[0].text);
+      SFX.echoBlocked(); return;
+    }
+    SFX.favour(); commit(r.state, r.events, { kind: 'favour', clover });
+    if (clover) { const b = $('#btnFavour'); if (b && !b.hidden) { const [x, y] = center(b); Amb.burst('petals', x, y, 18, '#6dffb3'); } }
     anim(frame, [{ boxShadow: '0 0 0 3px #ffc24b, 0 0 60px #ffc24b' }, { boxShadow: '0 0 0 3px #2c2266, 0 18px 40px #00000080' }], { duration: 700 });
   }
   function toggleHop() {
@@ -892,14 +946,16 @@
     $('#shopGrid').innerHTML = list.map((it) => {
       const head = shopTab !== 'boost' && !it.default && it.rarity !== lastRarity ? '<div class="rarity-head" style="--rc:' + Chars.RARITY[it.rarity].color + '">' + Chars.RARITY[it.rarity].label + ' · ' + list.filter((q) => q.rarity === it.rarity && !q.default).length + (shopTab === 'face' ? ' characters' : ' items') + '</div>' : '';
       if (shopTab !== 'boost' && !it.default) lastRarity = it.rarity;
-      const owned = it.slot !== 'boost' && Shop.owns(prog, LEVELS, it), on = owned && prog.equip[it.slot] === it.id;
+      const owned = it.slot !== 'boost' && Shop.owns(prog, LEVELS, it), on = owned && prog.equip[it.slot] === it.id, gate = it.gate ? Shop.gateStatus(prog, LEVELS, it.gate) : null;
       let btn;
       if (it.slot === 'boost') btn = '<button class="btn gold" data-buy="' + it.id + '"' + (prog.coins < it.price ? ' disabled' : '') + '><i class="coin-ico" style="width:18px;height:18px"></i>' + it.price + '</button>';
       else if (on) btn = '<button class="btn on" disabled>Equipped</button>';
       else if (owned) btn = '<button class="btn" data-equip="' + it.id + '">Equip</button>';
-      else if (it.price) btn = '<button class="btn gold" data-buy="' + it.id + '"' + (prog.coins < it.price ? ' disabled' : '') + '><i class="coin-ico" style="width:18px;height:18px"></i>' + it.price + '</button>';
-      else btn = '<button class="btn" disabled><svg><use href="#i-lock"/></svg>Locked</button>';
-      const tag = it.milestone ? (owned ? 'EARNED REWARD' : 'REWARD: ' + Shop.milestoneText(it).toUpperCase()) : it.default ? 'STARTER' : it.slot === 'boost' ? 'BOOST' : 'SHOP';
+      else if (gate && !gate.met) btn = '<div class="gate"><small><svg><use href="#i-lock"/></svg><b>Step 1:</b> ' + esc(gate.text) + '</small><div class="bar2"><i style="width:' + Math.round(gate.progress * 100) + '%"></i></div>' +
+        '<small>' + gate.have.toLocaleString('en-US') + ' / ' + gate.need.toLocaleString('en-US') + ' · <b>Step 2:</b> ' + it.price.toLocaleString('en-US') + ' coins</small></div><button class="btn" data-why="' + it.id + '"><svg><use href="#i-lock"/></svg>Locked</button>';
+      else if (it.price) btn = (prog.coins < it.price ? '<small class="need">' + (it.price - prog.coins).toLocaleString('en-US') + ' more coins needed</small>' : '') + '<button class="btn gold" data-buy="' + it.id + '"' + (prog.coins < it.price ? ' disabled' : '') + '><i class="coin-ico" style="width:18px;height:18px"></i>' + it.price.toLocaleString('en-US') + '</button>';
+      else btn = '<button class="btn" data-why="' + it.id + '"><svg><use href="#i-lock"/></svg>Locked</button>';
+      const tag = it.milestone ? (owned ? 'EARNED REWARD' : 'REWARD: ' + Shop.milestoneText(it).toUpperCase()) : it.default ? 'STARTER' : it.slot === 'boost' ? 'BOOST' : gate ? (owned ? 'LEGENDARY · YOURS' : gate.met ? 'LEGENDARY · UNLOCKED FOR SALE' : 'LEGENDARY · MILESTONE + COINS') : 'SHOP';
       return head + '<div class="item' + (it.rarity && shopTab !== 'boost' ? ' r-' + it.rarity : '') + (on ? ' equipped' : '') + (!owned && it.slot !== 'boost' && !it.price ? ' locked' : '') + '">' +
         (it.slot === 'boost' ? '<span class="owned-n">×' + prog.inv[it.boost] + '</span>' : '') + previewHTML(it) +
         '<span class="tagline">' + esc(tag) + '</span><h4>' + esc(it.name) + '</h4>' +
@@ -931,8 +987,156 @@
       b.onpointerleave = () => box.classList.remove('mood-happy');
       b.onpointermove = (ev) => { const r = b.getBoundingClientRect(); box.style.setProperty('--px', ((ev.clientX - r.left) / r.width - 0.5) * 9 + 'px'); box.style.setProperty('--py', ((ev.clientY - r.top) / r.height - 0.5) * 8 + 'px'); };
     });
+    $$('#shopGrid [data-why]').forEach((b) => (b.onclick = () => {
+      const it = Shop.byId(b.dataset.why), g = it.gate && Shop.gateStatus(prog, LEVELS, it.gate);
+      SFX.echoBlocked();
+      toast(g ? 'Locked. First: ' + g.text + ' (you have ' + g.have.toLocaleString('en-US') + ' of ' + g.need.toLocaleString('en-US') + '). Then it costs ' + it.price.toLocaleString('en-US') + ' coins.' : it.milestone ? 'Locked. Free reward: ' + Shop.milestoneText(it) + '.' : 'Locked.');
+    }));
     $$('#shopGrid [data-equip]').forEach((b) => (b.onclick = () => { Shop.equip(prog, LEVELS, b.dataset.equip); persist(); applySettings(); SFX.click(); renderShop(); }));
     coins();
+  }
+
+  /* ================= rewards hub: quests, wheel, chests, achievements, stats ================= */
+  let rwTab = 'quests', wheelRot = 0, spinning = false;
+  const RW_TABS = { quests: 'Quests', wheel: 'Wheel', chests: 'Chests', ach: 'Achievements', stats: 'Stats' };
+  const BAND = ['EASY', 'MEDIUM', 'HARD'];
+  const chestChip = (t) => '<span class="chest-chip" style="--cc:' + R.CHESTS[t].color + '">' + chestSVG(t) + R.CHESTS[t].name + '</span>';
+  function renderRewards() {
+    const day = today(); R.ensureQuests(prog, day);
+    const badge = {
+      quests: prog.quests.list.filter((q) => !q.claimed && q.n >= R.qById(q.id).goal).length, wheel: R.spinsAvailable(prog, day),
+      chests: prog.chestQueue.length, ach: R.ACH.filter((a) => R.achState(prog, LEVELS, a).claimable).length, stats: 0,
+    };
+    $('#rwTabs').innerHTML = Object.keys(RW_TABS).map((k) => '<button class="tab" role="tab" data-tab="' + k + '" aria-selected="' + (k === rwTab) + '">' + RW_TABS[k] + (badge[k] ? '<span class="tbadge">' + badge[k] + '</span>' : '') + '</button>').join('');
+    $$('#rwTabs .tab').forEach((b) => (b.onclick = () => { if (spinning) return; rwTab = b.dataset.tab; SFX.click(); renderRewards(); }));
+    ({ quests: rwQuests, wheel: rwWheel, chests: rwChests, ach: rwAch, stats: rwStats })[rwTab](day);
+    coins();
+  }
+  function rwQuests(day) {
+    const Q = prog.quests, allClaimed = Q.list.every((q) => q.claimed);
+    $('#rwBody').innerHTML = '<div class="rw-head"><b>Daily quests</b><small>New quests in ' + untilTomorrow() + '. Everyone gets the same three each day.</small></div>' +
+      Q.list.map((q, i) => {
+        const d = R.qById(q.id), done = q.n >= d.goal;
+        return '<div class="quest' + (q.claimed ? ' claimed' : done ? ' done' : '') + '"><span class="q-band b' + i + '">' + BAND[i] + '</span><div class="q-main"><b>' + esc(d.text) + '</b>' +
+          '<div class="bar2"><i style="width:' + Math.round((q.n / d.goal) * 100) + '%"></i></div><small>' + q.n + ' / ' + d.goal + '</small></div>' +
+          '<div class="q-rew"><span><i class="coin-ico"></i>' + d.reward.coins + '</span>' + (d.reward.chest ? chestChip(d.reward.chest) : '') + '</div>' +
+          (q.claimed ? '<button class="btn" disabled>Claimed ✓</button>' : done ? '<button class="btn gold" data-q="' + q.id + '">Claim</button>' : '<button class="btn" disabled>In progress</button>') + '</div>';
+      }).join('') +
+      '<div class="quest bonus' + (Q.bonus ? ' claimed' : '') + '"><span class="q-band b2">BONUS</span><div class="q-main"><b>Claim all three quests</b><small>' + (Q.bonus ? 'Earned today ✓' : Q.list.filter((q) => q.claimed).length + ' / 3 claimed') + '</small></div>' +
+      '<div class="q-rew"><span><svg><use href="#i-wheel"/></svg>+1 spin</span>' + chestChip('bronze') + '</div></div>' +
+      '<p class="rw-tip">Quest progress is counted when you <b>clear</b> a level, so undoing moves cannot fake it. ' + (allClaimed ? 'All done for today: come back in ' + untilTomorrow() + '.' : '') + '</p>';
+    $$('#rwBody [data-q]').forEach((b) => (b.onclick = () => {
+      const r = R.claimQuest(prog, day, b.dataset.q); if (!r) return;
+      persist(); SFX.win(); buzz(30); confetti();
+      toast('+' + r.coins + ' coins' + (r.chest ? ' and a ' + R.CHESTS[r.chest].name : '') + (r.bonus ? '. All quests done: +1 spin and a Bronze chest!' : '.'));
+      renderRewards();
+    }));
+  }
+  function wheelSVG() {
+    const n = R.SEGMENTS.length, step = 360 / n, P2 = (r, a) => [(r * Math.sin((a * Math.PI) / 180)).toFixed(2), (-r * Math.cos((a * Math.PI) / 180)).toFixed(2)];
+    let g = '';
+    R.SEGMENTS.forEach((sg, i) => {
+      const a0 = i * step - step / 2, a1 = a0 + step, [x0, y0] = P2(100, a0), [x1, y1] = P2(100, a1);
+      g += '<path class="seg" data-i="' + i + '" d="M0 0L' + x0 + ' ' + y0 + 'A100 100 0 0 1 ' + x1 + ' ' + y1 + 'Z" fill="' + sg.color + '"' + (i % 2 ? ' opacity=".86"' : '') + '/>';
+      g += '<g transform="rotate(' + i * step + ')"><text y="-62" text-anchor="middle" class="seg-t' + (sg.jackpot ? ' jp' : '') + '">' + esc(sg.label) + '</text>' +
+        (sg.k === 'coins' && !sg.jackpot ? '<circle cy="-40" r="7" class="seg-coin"/>' : '') + '</g>';
+    });
+    for (let i = 0; i < n * 2; i++) { const [x, y] = P2(104, (i * step) / 2); g += '<circle cx="' + x + '" cy="' + y + '" r="2.6" class="bulb' + (i % 2 ? ' b2' : '') + '"/>'; }
+    return '<svg class="wheel" id="wheel" viewBox="-110 -110 220 220" style="transform:rotate(' + wheelRot + 'deg)"><circle r="108" class="rim"/>' + g + '</svg>';
+  }
+  function rwWheel(day) {
+    const n = R.spinsAvailable(prog, day), free = prog.wheel.freeDay !== day, tot = R.SEGMENTS.reduce((a, s) => a + s.w, 0);
+    $('#rwBody').innerHTML = '<div class="wheel-layout"><div class="wheel-wrap"><div class="wheel-ptr" id="wPtr"></div>' + wheelSVG() +
+      '<button class="wheel-hub" id="wSpin"' + (n ? '' : ' disabled') + '>' + (n ? 'SPIN' : '<svg><use href="#i-lock"/></svg>') + '</button></div>' +
+      '<div class="wheel-side card"><div id="wResult" class="w-result">' + (n ? '<b>' + (free ? 'Your free daily spin is ready!' : plural(n, 'spin') + ' ready') + '</b>' + (free && prog.wheel.spins ? '<small>+' + prog.wheel.spins + ' banked</small>' : '')
+        : '<b>No spins right now</b><small>Next free spin in ' + untilTomorrow() + '.</small>') + '</div>' +
+      '<h3>How to get spins</h3><ul class="help-list"><li>1 free spin every day</li><li>Clear the Daily Echo: +1</li><li>Claim all 3 daily quests: +1</li><li>Achievement tiers 2 and up: +1 each</li><li>Gold chests (20%) and Mythic chests (always): +1</li></ul>' +
+      '<p class="small dim">You can bank up to ' + R.MAX_SPINS + ' extra spins (' + prog.wheel.spins + ' banked). <b>Lucky streak:</b> after 4 spins without a chest, the next one always lands on a chest or the jackpot (' + Math.min(4, prog.wheel.dry) + ' / 4).</p>' +
+      '<h3>Odds</h3><div class="odds">' + R.SEGMENTS.map((sg) => '<span><i style="background:' + sg.color + '"></i>' + esc(sg.label) + (sg.k === 'coins' && !sg.jackpot ? ' coins' : sg.k === 'chest' ? ' chest' : sg.jackpot ? ' (2,000)' : '') + ' <b>' + Math.round((sg.w / tot) * 100) + '%</b></span>').join('') + '</div></div></div>';
+    $('#wSpin').onclick = () => spinWheel(day);
+  }
+  function spinWheel(day) {
+    if (spinning) return;
+    const res = R.spin(prog, day); if (!res) { toast('No spins left. Next free spin in ' + untilTomorrow() + '.'); return; }
+    persist(); spinning = true; SFX.click();
+    $('#wSpin').disabled = true; $('#wResult').innerHTML = '<b>Spinning…</b>';
+    const wheel = $('#wheel'), step = 360 / R.SEGMENTS.length;
+    const want = (((-res.idx * step - wheelRot) % 360) + 360) % 360, jitter = (Math.random() - 0.5) * step * 0.6;
+    const from = wheelRot, to = wheelRot + 5 * 360 + want + jitter, dur = reduced() ? 400 : 4600, t0 = performance.now();
+    let lastSeg = Math.floor((from + step / 2) / step);
+    const ease = (k) => 1 - Math.pow(1 - k, 4);
+    const frame = (t) => {
+      const k = Math.min(1, (t - t0) / dur), rot = from + (to - from) * ease(k);
+      wheel.style.transform = 'rotate(' + rot + 'deg)';
+      const sg = Math.floor((rot + step / 2) / step);
+      if (sg !== lastSeg) { lastSeg = sg; SFX.tape(sg % 5); const p = $('#wPtr'); if (p) anim(p, [{ transform: 'translateX(-50%) rotate(-18deg)' }, { transform: 'translateX(-50%) rotate(0)' }], { duration: 120 }); }
+      if (k < 1) requestAnimationFrame(frame); else done(rot);
+    };
+    requestAnimationFrame(frame);
+    function done(rot) {
+      wheelRot = rot % 360; spinning = false;
+      const seg = res.seg, el = $('#wheel .seg[data-i="' + res.idx + '"]'); if (el) el.classList.add('win');
+      const [x, y] = center($('#wheel'));
+      if (seg.jackpot) { SFX.thunder(); Amb.flash(); Amb.burst('confetti', x, y, 60); Amb.burst('stars', x, y, 30, '#ffc24b'); confetti(); buzz([40, 40, 120]); }
+      else { SFX.win(); Amb.burst('sparks', x, y - 100, 18, seg.color); buzz(30); }
+      const what = seg.k === 'coins' ? '+' + seg.n.toLocaleString('en-US') + ' coins' + (seg.jackpot ? '. JACKPOT!' : '') : seg.k === 'boost' ? seg.label + ' added to your boosts' : 'A ' + R.CHESTS[seg.tier].name + '!';
+      const left = R.spinsAvailable(prog, day);
+      $('#wResult').innerHTML = '<b class="win-line">' + esc(what) + '</b>' + (res.pity ? '<small>Lucky streak paid out.</small>' : '') +
+        (res.quests && res.quests.length ? '<small>Quest complete: ' + esc(res.quests[0].text) + '</small>' : '') +
+        '<div class="row" style="margin-top:8px">' + (seg.k === 'chest' ? '<button class="btn gold" id="wOpen"><svg><use href="#i-chest"/></svg>Open it now</button>' : '') +
+        (left ? '<button class="btn' + (seg.k === 'chest' ? '' : ' gold') + '" id="wAgain">Spin again (' + left + ')</button>' : '<small>Next free spin in ' + untilTomorrow() + '.</small>') + '</div>';
+      on('wOpen', () => revealChests(renderRewards));
+      on('wAgain', () => { renderRewards(); });
+      coins();
+    }
+  }
+  function rwChests() {
+    const q = prog.chestQueue, C = R.CHESTS;
+    const pct = (x) => Math.round(x * 100) + '%';
+    $('#rwBody').innerHTML = '<div class="rw-head"><b>' + (q.length ? plural(q.length, 'chest') + ' waiting' : 'No chests waiting') + '</b><small>' + (q.length ? 'Open them one by one: tap each chest three times.' : 'Earn chests by playing; see below.') + '</small></div>' +
+      (q.length ? '<div class="chest-queue">' + q.map((c) => '<div class="cq" style="--cc:' + C[c.tier].color + '">' + chestSVG(c.tier) + '<b>' + C[c.tier].name + '</b><small>' + esc(c.source) + '</small></div>').join('') + '</div><div class="row"><button class="btn gold big" id="cqOpen"><svg><use href="#i-chest"/></svg>Open ' + (q.length > 1 ? 'chests' : 'chest') + '</button></div>' : '') +
+      '<div class="rw-grid"><div class="card"><h3>How to earn chests</h3><ul class="help-list">' +
+      '<li>' + chestChip('bronze') + ' every 3rd new level you clear</li><li>' + chestChip('silver') + ' every 10 stars you earn</li>' +
+      '<li>' + chestChip('gold') + ' first clear of a boss level (every 10th), plus ' + chestChip('silver') + ' if you reach par</li>' +
+      '<li>' + chestChip('mythic') + ' for clearing every level in a world</li><li>' + chestChip('gold') + ' every 7 days of Daily Echo streak</li>' +
+      '<li>Hard daily quests, the all-quests bonus, achievements and the wheel also give chests.</li></ul></div>' +
+      '<div class="card"><h3>What is inside</h3><table class="chest-table"><tr><th></th><th>Coins</th><th>Boosts</th><th>New cosmetic</th><th>Extra</th></tr>' +
+      Object.keys(C).map((k) => { const t = C[k]; return '<tr><td>' + chestChip(k) + '</td><td>' + t.coins[0] + '–' + t.coins[1] + '</td><td>' + (t.boosts || pct(t.boostChance) + ' for 1') + '</td><td>' + (t.cos ? pct(t.cos) + ' ' + t.cosR.join('/') : '—') + '</td><td>' + [t.spin ? pct(t.spin) + ' spin' : '', t.luck ? pct(t.luck) + ' Clover' : ''].filter(Boolean).join(', ') + '</td></tr>'; }).join('') +
+      '</table><p class="small dim">Legendary items never drop from chests: they keep their value. If you already own every item a chest could drop, you get bonus coins instead.</p></div></div>';
+    on('cqOpen', () => revealChests(renderRewards));
+  }
+  function rwAch() {
+    $('#rwBody').innerHTML = '<div class="rw-head"><b>Achievements</b><small>Permanent goals with tiers. Each tier pays coins and a chest; tier 2 and up also give a wheel spin.</small></div><div class="ach-list">' +
+      R.ACH.map((a) => {
+        const st = R.achState(prog, LEVELS, a), pct = st.done ? 100 : Math.min(100, Math.round((st.have / st.next) * 100));
+        return '<div class="ach' + (st.claimable ? ' ready' : '') + (st.done ? ' done' : '') + '"><div class="ach-top"><b>' + esc(a.name) + '</b><span class="pips">' + a.tiers.map((_, i) => '<i class="' + (i < st.claimed ? 'on' : '') + '"></i>').join('') + '</span></div>' +
+          '<small>' + (st.done ? 'All ' + a.tiers.length + ' tiers complete!' : 'Tier ' + (st.claimed + 1) + ': ' + st.next.toLocaleString('en-US') + ' ' + esc(a.unit) + ' · you have ' + st.have.toLocaleString('en-US')) + '</small>' +
+          (st.done ? '' : '<div class="bar2"><i style="width:' + pct + '%"></i></div><div class="ach-rew"><span><i class="coin-ico"></i>' + st.reward.coins.toLocaleString('en-US') + '</span>' + chestChip(st.reward.chest) + (st.claimed >= 1 ? '<span><svg><use href="#i-wheel"/></svg>+1</span>' : '') +
+            (st.claimable ? '<button class="btn gold" data-ach="' + a.id + '">Claim</button>' : '') + '</div>') + '</div>';
+      }).join('') + '</div>';
+    $$('#rwBody [data-ach]').forEach((b) => (b.onclick = () => {
+      const r = R.claimAch(prog, LEVELS, b.dataset.ach); if (!r) return;
+      persist(); SFX.win(); confetti(); toast('+' + r.coins.toLocaleString('en-US') + ' coins and a ' + R.CHESTS[r.chest].name + (r.spin ? ' and a wheel spin' : '') + '!'); renderRewards();
+    }));
+  }
+  function rwStats(day) {
+    const st = prog.stats, sv = (k) => Shop.statValue(prog, LEVELS, k);
+    const cleared = LEVELS.filter((l) => prog.levels[l.id] && prog.levels[l.id].clears).length;
+    const gentlePct = st.echoSteps + st.echoBumps ? Math.round((st.echoSteps / (st.echoSteps + st.echoBumps)) * 100) + '%' : '—';
+    const own = (slot) => { const all = Shop.CATALOG.filter((c) => c.slot === slot && !c.default); return all.filter((c) => Shop.owns(prog, LEVELS, c)).length + ' / ' + all.length; };
+    const rows = [['Stars', sv('stars') + ' / ' + LEVELS.length * 3], ['Levels cleared', cleared + ' / ' + LEVELS.length], ['Levels at par', sv('perfect')], ['Worlds cleared', sv('worlds') + ' / ' + WORLDS.length],
+      ['Clover', prog.luck + ' / 100'], ['Echo steps', st.echoSteps], ['Echo bumps', st.echoBumps], ['Echo care', gentlePct], ['Gentle clears', st.gentle], ['Moves made', st.moves], ['Favours used', st.favours],
+      ['Chests opened', st.chests], ['Wheel spins', st.spins], ['Jackpots', st.jackpots], ['Coins earned', st.coinsEarned], ['Best daily streak', sv('streak')], ['Achievement tiers', sv('achievements')],
+      ['Characters', own('face')], ['Orbs', own('orb')], ['Trails', own('trail')], ['Portals', own('portal')]];
+    const GO = { campaign: 'Play', daily: 'Play', wheel: 'Spin', quests: 'Open', chests: 'Open', ach: 'Open', replay: 'Map' };
+    $('#rwBody').innerHTML = '<div class="rw-grid"><div class="card"><h3>Ways to earn coins right now</h3><div class="earn-list">' +
+      R.earnings(prog, LEVELS, day).map((e) => '<div class="earn' + (e.ok ? ' ok' : '') + '"><i>' + (e.ok ? '●' : '○') + '</i><span>' + esc(e.text) + '</span>' + (e.ok ? '<button class="plan-btn" data-earn="' + e.id + '">' + GO[e.id] + '</button>' : '') + '</div>').join('') + '</div></div>' +
+      '<div class="card"><h3>Your stats</h3><div class="stat-grid">' + rows.map((r) => '<div class="stat"><span>' + r[0].toUpperCase() + '</span><b>' + (typeof r[1] === 'number' ? r[1].toLocaleString('en-US') : r[1]) + '</b></div>').join('') + '</div></div></div>';
+    $$('#rwBody [data-earn]').forEach((b) => (b.onclick = () => {
+      SFX.click(); const k = b.dataset.earn;
+      if (k === 'campaign') startLevel(P.nextLevelIndex(prog, LEVELS)); else if (k === 'daily') playDaily(); else if (k === 'replay') { mapSel = null; mapWorld = null; show('map'); }
+      else { rwTab = { wheel: 'wheel', quests: 'quests', chests: 'chests', ach: 'ach' }[k]; renderRewards(); }
+    }));
   }
 
   /* ---------- stuck detection (exhaustive search via the engine) ---------- */
@@ -1039,6 +1243,7 @@
     for (const e of events) {
       if (e.type === 'ECHO_MOVED') {
         const ec = next.echoes.find((q) => q.id === e.echo); ripple(ec.x, ec.y, ECHO_INFO[ec.type].color); SFX.fire(); buzz(15); mood(e.echo, 'happy', 750);
+        if (prog.luck < R.LUCK.max) floatText(ec.x, ec.y, '+' + R.LUCK.step + ' clover', '#6dffb3');
         const ael = actorEls.get('echo' + e.echo), aura = Amb.mode();
         if (ael && aura && !reduced()) {
           const [x, y] = center(ael);
@@ -1049,6 +1254,7 @@
       if (e.type === 'ECHO_BLOCKED') {
         SFX.echoBlocked(); mood(e.echo, 'dizzy', 1000);
         const el = actorEls.get('echo' + e.echo);
+        if (/tries/.test(e.text)) { const ec = next.echoes.find((q) => q.id === e.echo); if (ec) floatText(ec.x, ec.y, R.LUCK.bump + ' clover', '#ff5c8a'); anim($('#cloverMeter'), [{ transform: 'translateX(0)' }, { transform: 'translateX(-4px)' }, { transform: 'translateX(4px)' }, { transform: 'translateX(0)' }], { duration: 260 }); }
         if (el) anim(el.querySelector('.shape'), [{ translate: '0 0' }, { translate: '-5px 0' }, { translate: '5px 0' }, { translate: '0 0' }], { duration: 220 });
       }
       if (e.type === 'BUILD') { SFX.build(); const b = next.blocks[next.blocks.length - 1]; const el = actorEls.get('temp' + b.x + ',' + b.y); if (el) anim(el.firstChild, [{ transform: 'translateY(-60%) scale(1.1)' }, { transform: 'translateY(0) scale(1)' }], { duration: 260, easing: 'cubic-bezier(.3,1.6,.5,1)' }); }
@@ -1092,10 +1298,19 @@
       const rec = P.record(prog, L.id); rec.best = rec.best === null ? S.moves : Math.min(rec.best, S.moves); rec.stars = Math.max(rec.stars, stars);
       receipt = { lines: d.lines.length ? d.lines : [{ label: 'Already claimed today', value: 0, tone: 'dim' }], total: d.total, stars, best: rec.best, first: false, newBest: false,
         next: 'Daily streak: ' + (d.streak || P.dailyStatus(prog, today()).streak) + ' day(s). A new Daily Echo appears tomorrow; keep the streak alive for bigger bonuses.' };
+      if (d.total) receipt.dailyBonus = R.onDaily(prog, d.streak);
     } else receipt = P.applyClear(prog, L, { moves: S.moves, collected, usedHint: G.usedHint, assisted: G.movesUsed }, Date.now());
+    const luck0 = prog.luck;
+    const book = R.onClear(prog, LEVELS, { level: G.def, stars: receipt.stars, perfect: !!L.par && S.moves <= L.par, bumps: G.bumps, hasEchoes: S.echoes.length > 0, usedHint: G.usedHint,
+      undos: G.undos, first: !!receipt.first, daily: G.daily, coinsTotal: receipt.total, steps: G.steps, coins: collected, favours: G.favours }, today());
+    if (receipt.dailyBonus && receipt.dailyBonus.chest) book.chests.push(receipt.dailyBonus.chest);
     const unlocked = Shop.newUnlocks(prog, LEVELS), goal = Shop.nextGoal(prog, LEVELS);
     persist();
-    persist();
+    const chestRow = book.chests.length ? '<div class="won-chests">' + book.chests.map((t, i) => '<div class="wc" style="--cc:' + R.CHESTS[t].color + ';animation-delay:' + (0.9 + i * 0.15) + 's">' + chestSVG(t) + '<small>' + R.CHESTS[t].name + '</small></div>').join('') + '</div>' : '';
+    const extras = (book.gentle ? '<div class="note clover-note"><svg><use href="#i-clover"/></svg><span><b>Gentle clear:</b> no echo bumped into anything. ' + (prog.luck > luck0 ? 'Clover +' + (prog.luck - luck0) + ' (now ' + prog.luck + '/100).' : 'Your Clover is full: use its free Favour in any level.') + '</span></div>'
+      : S.echoes.length && G.bumps ? '<div class="note"><svg style="color:var(--pink)"><use href="#i-clover"/></svg><span>Your echoes bumped ' + plural(G.bumps, 'time') + '. Clear with no bumps for +' + R.LUCK.gentle + ' Clover.</span></div>' : '') +
+      book.quests.map((q) => '<div class="note quest-note"><svg><use href="#i-flame"/></svg><span><b>Quest complete:</b> ' + esc(q.text) + '. Claim it in Rewards.</span></div>').join('') +
+      (receipt.dailyBonus ? '<div class="note"><svg><use href="#i-wheel"/></svg><span><b>Daily bonus:</b> +1 wheel spin' + (receipt.dailyBonus.chest ? ' and a Gold chest for your streak' : '') + '.</span></div>' : '');
     const last = G.idx === LEVELS.length - 1;
     openModal(
       '<div class="rays"></div><div class="kicker">WORLD ' + G.def.world + ' · LEVEL ' + L.id + ' · ' + esc(L.name).toUpperCase() + '</div>' +
@@ -1104,12 +1319,13 @@
       '<div class="stats-row"><span>Moves <b>' + S.moves + '</b>' + (L.par ? ' / par ' + L.par : '') + '</span><span>Best <b>' + receipt.best + '</b>' + (receipt.newBest && !receipt.first ? ' · new best!' : '') + '</span></div>' +
       '<div class="receipt">' + receipt.lines.map((r, i) => '<div class="r ' + r.tone + '" style="animation-delay:' + (0.5 + i * 0.12) + 's"><span>' + esc(r.label) + '</span><span>+' + r.value + '</span></div>').join('') +
       '<hr><div class="total"><span class="disp" style="font-size:22px">Total</span><b><i class="coin-ico"></i><span id="countUp">+0</span></b></div></div>' +
+      (chestRow ? '<div class="kicker" style="margin-top:4px">' + (book.chests.length > 1 ? book.chests.length + ' CHESTS EARNED' : 'CHEST EARNED') + '</div>' + chestRow : '') + extras +
       '<div class="note lesson"><svg><use href="#i-bulb"/></svg><span><b>You learned:</b> ' + esc(L.lesson || G.def.lesson) + '</span></div>' +
       unlocked.map((it) => '<div class="unlock-card"><svg style="color:var(--mint)"><use href="#i-star"/></svg><span><b>New unlock:</b> ' + esc(it.name) + ' (' + esc(it.slot === 'face' ? 'echo face' : it.slot) + '). Equip it in the Shop.</span></div>').join('') +
       (goal ? '<div class="note"><svg><use href="#i-bag"/></svg><span><b>Next unlock:</b> ' + esc(goal.text) + '</span></div>' : '') +
       '<div class="note"><svg><use href="#i-restart"/></svg><span>' + esc(receipt.next) + '</span></div>' +
       (last ? '<p>You finished every level. More worlds are on the way.</p>' : '') +
-      '<div class="row"><button class="btn" id="vMap"><svg><use href="#i-map"/></svg>Map</button><button class="btn" id="vReplay"><svg><use href="#i-restart"/></svg>Replay</button>' +
+      '<div class="row">' + (prog.chestQueue.length ? '<button class="btn chestbtn" id="vChests"><svg><use href="#i-chest"/></svg>Open ' + plural(prog.chestQueue.length, 'chest') + '</button>' : '') + '<button class="btn" id="vMap"><svg><use href="#i-map"/></svg>Map</button><button class="btn" id="vReplay"><svg><use href="#i-restart"/></svg>Replay</button>' +
       (last || G.daily ? '' : '<button class="btn gold big" id="vNext">Next level<svg><use href="#i-play"/></svg></button>') +
       (G.daily ? '<button class="btn gold big" id="vHome">Home<svg><use href="#i-play"/></svg></button>' : '') + '</div>',
       () => {
@@ -1120,11 +1336,98 @@
         [1, 2, 3].forEach((k) => { if (k <= receipt.stars) setTimeout(() => SFX.star(k), (reduced() ? 0 : 350 + k * 180)); });
         countUp($('#countUp'), receipt.total);
         confetti();
+        on('vChests', () => revealChests(() => { coins(); victoryAgain(); }));
+        // freshly earned chests descend over the result screen on their own
+        if (book.chests.length) G.revealT = setTimeout(() => { if (screen === 'game' && !$('#overlay').hidden && $('#vMap')) revealChests(() => { coins(); victoryAgain(); }); }, reduced() ? 300 : 1900);
       });
   }
-  function countUp(el, total) {
+  // After a chest reveal, return to the result screen without re-running the rewards.
+  function victoryAgain() {
+    const btn = $('#vChests');
+    if (btn) { if (prog.chestQueue.length) btn.lastChild.textContent = 'Open ' + plural(prog.chestQueue.length, 'chest'); else btn.remove(); }
+  }
+  /* ---------- chests: a glowing chest descends, you tap it three times, it bursts open ---------- */
+  function chestSVG(tier) {
+    const c = R.CHESTS[tier].color, gem = tier === 'mythic' ? '#fff' : tier === 'gold' ? '#ff5c8a' : tier === 'silver' ? '#4fe3ff' : '#ffc24b';
+    return '<svg class="chest-svg" viewBox="0 0 120 112" aria-hidden="true">' +
+      '<g class="c-body"><rect x="12" y="52" width="96" height="52" rx="9" fill="' + c + '"/><rect x="12" y="78" width="96" height="26" rx="9" fill="#00000033"/>' +
+      '<rect x="26" y="52" width="10" height="52" fill="#0000002a"/><rect x="84" y="52" width="10" height="52" fill="#0000002a"/><rect x="12" y="52" width="96" height="6" fill="#ffffff44"/></g>' +
+      '<g class="c-lid"><path d="M12 54V42a48 28 0 0 1 96 0v12z" fill="' + c + '"/><path d="M12 54V42a48 28 0 0 1 96 0v12z" fill="none" stroke="#00000033" stroke-width="3"/>' +
+      '<rect x="26" y="20" width="10" height="34" fill="#0000002a"/><rect x="84" y="20" width="10" height="34" fill="#0000002a"/><path d="M20 30a44 20 0 0 1 80 0" fill="none" stroke="#ffffff55" stroke-width="4" stroke-linecap="round"/></g>' +
+      '<g class="c-lock"><rect x="49" y="46" width="22" height="24" rx="5" fill="#2a1a00"/><rect x="52" y="49" width="16" height="18" rx="4" fill="' + gem + '"/><circle cx="60" cy="56" r="2.6" fill="#2a1a00"/><rect x="58.6" y="56" width="2.8" height="7" fill="#2a1a00"/></g></svg>';
+  }
+  const BOOST_NAME = { hint: ['Hint', 'Hints', 'i-bulb'], moves: ['+3 moves', '+3 moves', 'i-plus'], luck: ['Lucky charm', 'Lucky charms', 'i-bolt'], skip: ['Skip ticket', 'Skip tickets', 'i-skip'] };
+  let reveal = null;
+  function revealChests(done) {
+    if (reveal || !prog.chestQueue.length) { if (done && !reveal) done(); return; }
+    clearTimeout(G && G.revealT);
+    const el = $('#reveal');
+    reveal = { done, taps: 0, state: 'descend', opened: 0 };
+    el.hidden = false;
+    const stage = () => {
+      const c = prog.chestQueue[0], T = R.CHESTS[c.tier];
+      reveal.taps = 0; reveal.state = 'descend';
+      el.style.setProperty('--cc', T.color);
+      el.className = 'reveal t-' + c.tier;
+      el.innerHTML = '<div class="rv-rays"></div><div class="rv-glow"></div>' +
+        '<div class="rv-head"><div class="kicker">' + (prog.chestQueue.length > 1 ? prog.chestQueue.length + ' CHESTS WAITING' : 'CHEST') + '</div><h2 class="disp">' + esc(T.name) + '</h2><small>' + esc(c.source || '') + '</small></div>' +
+        '<button class="rv-chest" id="rvChest" aria-label="Open the chest"><span class="rv-halo"></span><span class="rv-beam"></span>' + chestSVG(c.tier) + '<span class="rv-shadow"></span></button>' +
+        '<p class="rv-tap" id="rvTap">' + (reduced() ? 'Tap the chest to open it' : 'Tap the chest 3 times to open it') + '</p>' +
+        '<div class="rv-loot" id="rvLoot"></div><div class="rv-actions" id="rvActions"><button class="btn" id="rvLater">Open later</button></div>';
+      const chest = $('#rvChest');
+      chest.onclick = tapChest;
+      $('#rvLater').onclick = () => { SFX.click(); closeReveal(); };
+      if (reduced()) { reveal.state = 'idle'; el.classList.add('idle'); return; }
+      SFX.favour();
+      const a = chest.animate([{ transform: 'translateY(-110vh) scale(.6) rotate(-8deg)', opacity: 0 }, { transform: 'translateY(12px) scale(1.04) rotate(2deg)', opacity: 1, offset: 0.78 }, { transform: 'translateY(0) scale(1) rotate(0)' }], { duration: 1100, easing: 'cubic-bezier(.2,.9,.3,1)' });
+      a.onfinish = () => { if (!reveal) return; reveal.state = 'idle'; el.classList.add('idle'); SFX.slam(); buzz(25); const [x, y] = center(chest); Amb.burst('stars', x, y + 40, 14, T.color); };
+    };
+    function tapChest() {
+      if (!reveal || reveal.state !== 'idle') return;
+      const chest = $('#rvChest'), need = reduced() ? 1 : 3;
+      reveal.taps++;
+      if (reveal.taps < need) {
+        el.style.setProperty('--charge', reveal.taps / need);
+        el.classList.add('charging');
+        SFX.tape(reveal.taps + 1); buzz(20 * reveal.taps);
+        anim(chest, [{ transform: 'rotate(0)' }, { transform: 'rotate(-' + 5 * reveal.taps + 'deg) scale(1.03)' }, { transform: 'rotate(' + 5 * reveal.taps + 'deg) scale(1.05)' }, { transform: 'rotate(0) scale(1)' }], { duration: 320 });
+        $('#rvTap').textContent = reveal.taps === 1 ? 'It\'s waking up… tap again' : 'Almost! One more tap';
+        return;
+      }
+      openIt();
+    }
+    function openIt() {
+      reveal.state = 'open';
+      const out = R.openChest(prog, LEVELS); persist();
+      const chest = $('#rvChest'), [x, y] = center(chest), T = R.CHESTS[out.tier];
+      el.classList.remove('charging'); el.classList.add('opened');
+      SFX.win(); buzz([30, 30, 80]); Amb.flash();
+      Amb.burst('confetti', x, y, 34); Amb.burst('stars', x, y - 30, 20, T.color); if (out.tier === 'mythic' || out.tier === 'gold') setTimeout(() => Amb.burst('sparks', x, y - 40, 30, '#fff'), 200);
+      $('#rvTap').textContent = '';
+      const cards = [];
+      cards.push('<div class="loot coins"><i class="coin-ico"></i><b id="rvCoins">+0</b><small>coins</small></div>');
+      out.boosts.forEach((b) => { const n = BOOST_NAME[b.kind]; cards.push('<div class="loot"><svg><use href="#' + n[2] + '"/></svg><b>×' + b.n + '</b><small>' + (b.n > 1 ? n[1] : n[0]) + '</small></div>'); });
+      if (out.item) cards.push('<div class="loot item r-' + out.item.rarity + '" style="--rc:' + Chars.RARITY[out.item.rarity].color + '">' + previewHTML(out.item) + '<b>' + esc(out.item.name) + '</b><small>NEW ' + Chars.RARITY[out.item.rarity].label.toUpperCase() + ' ' + (out.item.slot === 'face' ? 'CHARACTER' : out.item.slot.toUpperCase()) + '</small><button class="btn gold" id="rvEquip">Equip</button></div>');
+      if (out.dup) cards.push('<div class="loot"><svg><use href="#i-star"/></svg><b>+' + out.dup + '</b><small>bonus: you own every item this chest could drop</small></div>');
+      if (out.spin) cards.push('<div class="loot"><svg><use href="#i-wheel"/></svg><b>+1</b><small>wheel spin</small></div>');
+      if (out.luck) cards.push('<div class="loot clover"><svg><use href="#i-clover"/></svg><b>+' + out.luck + '</b><small>Clover</small></div>');
+      $('#rvLoot').innerHTML = cards.join('');
+      $$('#rvLoot .loot').forEach((c, i) => anim(c, [{ opacity: 0, transform: 'translateY(40px) scale(.6)' }, { opacity: 1, transform: 'translateY(-6px) scale(1.06)', offset: 0.7 }, { opacity: 1, transform: 'none' }], { duration: 520, delay: 250 + i * 160, fill: 'backwards', easing: 'cubic-bezier(.3,1.4,.5,1)' }));
+      setTimeout(() => { const c = $('#rvCoins'); if (c) countUp(c, out.coins + 0, true); SFX.coin(); }, reduced() ? 0 : 400);
+      const eq = $('#rvEquip'); if (eq) eq.onclick = () => { Shop.equip(prog, LEVELS, out.item.id); persist(); applySettings(); SFX.click(); eq.textContent = 'Equipped'; eq.disabled = true; if (G && screen === 'game') { buildBoard(); render(true); } };
+      reveal.opened++;
+      const more = prog.chestQueue.length;
+      $('#rvActions').innerHTML = (more ? '<button class="btn" id="rvLater">Later</button><button class="btn gold big" id="rvNext"><svg><use href="#i-chest"/></svg>Next chest (' + more + ')</button>' : '') + '<button class="btn ' + (more ? '' : 'gold big') + '" id="rvDone">Collect</button>';
+      on('rvLater', closeReveal); on('rvDone', closeReveal); on('rvNext', stage);
+      coins();
+    }
+    function closeReveal() { el.hidden = true; el.innerHTML = ''; el.className = 'reveal'; const d = reveal && reveal.done; reveal = null; coins(); if (screen === 'title') renderTitle(); if (d) d(); }
+    reveal.close = closeReveal; reveal.tap = tapChest;
+    stage();
+  }
+  function countUp(el, total, now) {
     if (reduced() || total === 0) { el.textContent = '+' + total; coins(); return; }
-    const t0 = performance.now() + 700, dur = 700;
+    const t0 = performance.now() + (now ? 0 : 700), dur = 700;
     const tick = (t) => {
       const k = Math.max(0, Math.min(1, (t - t0) / dur));
       el.textContent = '+' + Math.round(total * k);
@@ -1167,6 +1470,7 @@
       '<li>Plates hold doors open while something stands on them. Crates can be pushed but never pulled.</li>' +
       '<li><b>Escape together</b>: required echoes must also reach the portal.</li>' +
       '<li>Coins fill Luck. At 100, Favour makes echoes act every 2 moves for a while.</li>' +
+      '<li><b style="color:var(--mint)">Clover</b> is luck you keep between levels: echo steps fill it, bumping echoes into walls drains it. When it is full, use a free Favour in any level.</li>' +
       '<li>Stuck? The game checks every possible line and tells you when a level can no longer be won.</li></ul>' +
       '<p class="keys"><kbd>←↑↓→</kbd>/<kbd>WASD</kbd> or swipe · <kbd>Z</kbd> undo · <kbd>R</kbd> restart · <kbd>F</kbd> favour · <kbd>H</kbd> hop · <kbd>O</kbd> oracle · <kbd>Esc</kbd> pause</p>' +
       '<div class="row">' + back + '</div>', () => on('hOk', () => { prog.introDone = true; persist(); closeModal(); }));
@@ -1181,7 +1485,7 @@
       on('sSound', () => { prog.sound = !prog.sound; persist(); applySettings(); settings(); });
       on('sAmb', () => { prog.ambient = prog.ambient === false; persist(); applySettings(); settings(); });
       on('sMotion', () => { prog.reduceMotion = !prog.reduceMotion; persist(); applySettings(); settings(); });
-      on('sReset', () => { if (!confirmReset) return settings(true); prog = P.defaults(); prog.introDone = true; persist(); applySettings(); mapSel = null; closeModal(); show('title'); toast('Progress erased.'); });
+      on('sReset', () => { if (!confirmReset) return settings(true); prog = R.init(P.defaults()); prog.introDone = true; persist(); applySettings(); mapSel = null; closeModal(); show('title'); toast('Progress erased.'); });
       on('sOk', () => { closeModal(); if (screen === 'title') renderTitle(); });
     });
   }
@@ -1197,6 +1501,11 @@
   window.addEventListener('keydown', (ev) => {
     if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
     const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+    if (reveal) {
+      if (k === 'Escape') reveal.close();
+      else if ((k === ' ' || k === 'Enter') && $('#rvChest') && !$('#rvNext') && !$('#rvDone')) { ev.preventDefault(); reveal.tap(); }
+      return;
+    }
     if (!$('#overlay').hidden) {
       if (k === 'Escape') { closeModal(); if (screen === 'game' && G && G.S.status !== 'play') { /* stay on result */ } }
       else if ((k === 'n' || k === 'Enter') && $('#vNext')) { ev.preventDefault(); startLevel(G.idx + 1); }
@@ -1234,7 +1543,8 @@
   $('#stuckUndo').onclick = undo; $('#stuckRestart').onclick = restart;
   $('#tContinue').onclick = () => { SFX.click(); startLevel(P.nextLevelIndex(prog, LEVELS)); };
   $('#tDaily').onclick = playDaily;
-  $('#btnMoves').onclick = boostMoves; $('#btnLuck').onclick = boostLuck; $('#btnSkip').onclick = boostSkip; $('#tChest').onclick = () => { SFX.click(); openChestModal(); };
+  $('#btnMoves').onclick = boostMoves; $('#btnLuck').onclick = boostLuck; $('#btnSkip').onclick = boostSkip; $('#cloverMeter').onclick = () => { SFX.click(); cloverInfo(); }; $('#tClover').onclick = () => { SFX.click(); cloverInfo(); };
+  $('#cloverBanner').onclick = () => favour();
   $$('[data-go]').forEach((b) => (b.onclick = () => { SFX.click(); if (b.dataset.go === 'map') { mapSel = null; mapWorld = null; } show(b.dataset.go); }));
   $$('[data-open]').forEach((b) => (b.onclick = () => { SFX.click(); b.dataset.open === 'help' ? help() : settings(); }));
   $('#overlay').addEventListener('click', (e) => { if (e.target === $('#overlay') && G && G.S.status === 'play' && screen === 'game') closeModal(); });

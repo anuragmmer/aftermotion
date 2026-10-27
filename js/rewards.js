@@ -188,11 +188,12 @@
     prog.wheel.dry = seg.k === 'chest' || seg.jackpot ? 0 : prog.wheel.dry + 1;
     if (seg.jackpot) prog.stats.jackpots++;
     prog.stats.spins++;
-    return { idx, seg, pity };
+    const quests = questEvent(prog, day, 'spin', 1);
+    return { idx, seg, pity, quests };
   }
 
   /* ---------- level clear bookkeeping: stats, luck, quests, chests ---------- */
-  /* run = { level, stars, perfect, bumps, hasEchoes, usedHint, undos, first, daily, coinsTotal } */
+  /* run = { level, stars, perfect, bumps, hasEchoes, usedHint, undos, first, daily, coinsTotal, steps, coins, favours } */
   function onClear(prog, levels, run, day) {
     const st = prog.stats, chests = [], quests = [];
     st.clears++;
@@ -208,6 +209,10 @@
     if (!run.usedHint && !run.undos) q('clean', 1);
     if (run.daily) q('daily', 1);
     if (run.level.id % 10 === 0) q('boss', 1);
+    // counted on clear (net of undo) so they cannot be farmed by moving and undoing
+    if (run.steps) q('echoStep', run.steps);
+    if (run.coins) q('coin', run.coins);
+    if (run.favours) q('favour', run.favours);
     // chests earned by this clear
     if (run.first && st.firstClears % 3 === 0) chests.push(grantChest(prog, 'bronze', 'Every 3rd new level'));
     if (run.first && run.level.id % 10 === 0) { chests.push(grantChest(prog, 'gold', 'Boss level cleared')); if (run.stars === 3) chests.push(grantChest(prog, 'silver', 'Boss level at par')); }

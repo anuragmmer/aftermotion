@@ -146,16 +146,6 @@
     return { total, streak, lines };
   }
 
-  /* ---------- star chests: one every 10 stars ---------- */
-  const CHEST_STARS = 10;
-  const chestsAvailable = (prog) => Math.max(0, Math.floor(totalStars(prog) / CHEST_STARS) - (prog.chests || 0));
-  const nextChestAt = (prog) => ((prog.chests || 0) + 1) * CHEST_STARS;
-  function openChest(prog) {
-    if (!chestsAvailable(prog)) return 0;
-    const coins = 50 + 25 * (prog.chests || 0);
-    prog.chests = (prog.chests || 0) + 1; prog.coins += coins;
-    return coins;
-  }
 
-  return { skipLevel, DAILY, dayShift, dailyLevelIndex, dailyStatus, applyDaily, CHEST_STARS, chestsAvailable, nextChestAt, openChest, RULES, baseReward, starsFor, twoStarLimit, defaults, record, applyClear, nextReplayInfo, isUnlocked, totalStars, nextLevelIndex, chargeHint, hintPrice, load, save };
+  return { skipLevel, DAILY, dayShift, dailyLevelIndex, dailyStatus, applyDaily, RULES, baseReward, starsFor, twoStarLimit, defaults, record, applyClear, nextReplayInfo, isUnlocked, totalStars, nextLevelIndex, chargeHint, hintPrice, load, save };
 });

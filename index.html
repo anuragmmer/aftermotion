@@ -35,6 +35,9 @@
     <symbol id="i-bag" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"><path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 016 0v2"/></g></symbol>
     <symbol id="i-skip" viewBox="0 0 24 24"><g fill="currentColor"><path d="M4 5l9 7-9 7z"/><path d="M12 5l9 7-9 7z"/></g></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></symbol>
+    <symbol id="i-clover" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="8.6" cy="8.6" r="4.2"/><circle cx="15.4" cy="8.6" r="4.2"/><circle cx="8.6" cy="15.4" r="4.2"/><circle cx="15.4" cy="15.4" r="4.2"/></g><path d="M12 12c2 4 3 7 6 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-gift" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round"><rect x="3" y="9" width="18" height="12" rx="1.5"/><path d="M2 9h20M12 9v12"/><path d="M12 9c-2-5-7-5-7-2s5 2 7 2zM12 9c2-5 7-5 7-2s-5 2-7 2z"/></g></symbol>
+    <symbol id="i-wheel" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6L5.6 18.4"/></g><circle cx="12" cy="12" r="2.4" fill="currentColor"/></symbol>
     <symbol id="i-sound" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 010 6M18.5 6.5a8 8 0 010 11"/></g></symbol>
   </defs>
 </svg>
@@ -51,7 +54,7 @@
     <button id="tContinue" class="cta"><svg><use href="#i-play"/></svg><span id="tContinueLabel">Play</span></button>
     <div class="daily-row">
       <button class="daily-card" id="tDaily"><span class="dc-ico"><svg><use href="#i-flame"/></svg></span><span class="dc-txt"><b>Daily Echo</b><small id="tDailySub"></small></span><span class="streak" id="tStreak"></span></button>
-      <button class="chest-card" id="tChest"><span class="dc-ico chest"><svg><use href="#i-chest"/></svg></span><span class="dc-txt"><b id="tChestTitle">Star chest</b><small id="tChestSub"></small><i class="chest-bar"><i id="tChestFill"></i></i></span></button>
+      <button class="chest-card" id="tRewards" data-go="rewards"><span class="dc-ico chest"><svg><use href="#i-gift"/></svg></span><span class="dc-txt"><b id="tRewardsTitle">Rewards</b><small id="tRewardsSub"></small></span><span class="badge" id="tRewardsBadge" hidden></span></button>
     </div>
     <button class="shop-cta" data-go="shop"><span class="dc-ico shopi"><svg><use href="#i-bag"/></svg></span><span class="dc-txt"><b>Shop &amp; unlocks</b><small id="tShopSub"></small></span><span class="shop-new" id="tShopNew" hidden>NEW</span></button>
     <div class="menu-grid">
@@ -62,8 +65,8 @@
     </div>
   </div>
   <div class="title-foot">
-    <div class="pills"><span class="pill"><i class="coin-ico"></i><b class="coinCount">0</b></span><span class="pill"><svg class="star-ico"><use href="#i-star"/></svg><b id="tStarCount">0</b></span></div>
-    <span class="dim small">6 worlds · 60 levels · more coming</span>
+    <div class="pills"><span class="pill"><i class="coin-ico"></i><b class="coinCount">0</b></span><span class="pill"><svg class="star-ico"><use href="#i-star"/></svg><b id="tStarCount">0</b></span><button class="pill clover-pill" id="tClover" aria-label="Clover luck"><svg><use href="#i-clover"/></svg><b class="cloverCount">0</b></button></div>
+    <span class="dim small" id="tFoot"></span>
   </div>
 </section>
 
@@ -115,6 +118,19 @@
   </div>
 </section>
 
+<!-- REWARDS -->
+<section id="rewards" class="screen" hidden>
+  <header class="bar">
+    <button class="icon-btn" data-go="title" aria-label="Home"><svg><use href="#i-back"/></svg></button>
+    <div class="bar-title"><small id="rwKicker">QUESTS · WHEEL · CHESTS · ACHIEVEMENTS</small><b class="disp">Rewards</b></div>
+    <span class="pill"><i class="coin-ico"></i><b class="coinCount">0</b></span>
+  </header>
+  <div class="shop-body">
+    <div class="tabs" role="tablist" id="rwTabs"></div>
+    <div id="rwBody"></div>
+  </div>
+</section>
+
 <!-- GAME -->
 <section id="game" class="screen" hidden>
   <header class="bar game-bar">
@@ -125,11 +141,13 @@
       <div class="par-bar"><i id="gParFill"></i></div>
       <small id="gStarHint"></small>
     </div>
+    <button class="clover-meter" id="cloverMeter" aria-label="Clover luck"><svg><use href="#i-clover"/></svg><i class="cm-bar"><i id="cloverFill"></i></i><b class="cloverCount">0</b></button>
     <span class="pill" id="coinPill"><i class="coin-ico"></i><b class="coinCount">0</b></span>
   </header>
   <div class="game-body">
     <div class="play-col">
       <div class="stage" id="stage">
+        <button class="clover-banner" id="cloverBanner" hidden><svg><use href="#i-clover"/></svg><span><b>Clover full!</b> Tap for a free Favour</span></button>
         <div class="board-frame" id="frame">
           <div class="board" id="board"></div>
           <div class="stuck" id="stuck" role="alert" hidden>
@@ -178,6 +196,7 @@
 
 <div id="overlay" class="overlay" hidden><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
 <div id="fx" class="fx-layer" aria-hidden="true"></div>
+<div id="reveal" class="reveal" hidden></div>
 
 <script src="js/engine.js"></script>
 <script src="js/levels.js"></script>
