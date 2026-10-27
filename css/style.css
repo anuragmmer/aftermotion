@@ -1050,3 +1050,5 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px
 .keys-sheet h4{margin:0 0 4px;font:600 15px var(--disp);color:var(--gold)}
 .keys-sheet div div{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;padding:2px 0;border-bottom:1px solid #ffffff0d}
 .keys-sheet kbd{margin-left:3px}
+@media (hover:none),(pointer:coarse){kbd{display:none!important}}
+@media (max-width:640px){.game-bar .icon-btn{width:40px;height:40px;border-radius:13px}.game-bar{gap:8px}.game-bar .bar-title b{font-size:20px}.game-bar .pill{font-size:15px;padding:4px 10px 4px 4px}}
