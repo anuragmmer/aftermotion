@@ -210,13 +210,14 @@ function apply() {
     if (!files.length) continue;
     const uniq = new Map();
     files.forEach((n) => JSON.parse(fs.readFileSync(path.join(GEN, n))).forEach((d) => uniq.set(d.map.join('/'), d)));
-    const pool = [...uniq.values()].filter((d) => d.par <= 60).sort((a, b) => a.par * 1000 + a.states / 1000 - (b.par * 1000 + b.states / 1000));
+    const MUST = { 8: 'crate', 9: 'hop' };
+    const pool = [...uniq.values()].filter((d) => d.par <= 60 && (!MUST[w] || d.needs.includes(MUST[w]))).sort((a, b) => a.par * 1000 + a.states / 1000 - (b.par * 1000 + b.states / 1000));
     if (pool.length < 10) throw new Error('world ' + w + ' has only ' + pool.length + ' candidates');
     // spread across the difficulty range, hardest last (the boss)
     // later worlds start further up the difficulty range
     const lo = Math.min(Math.floor(pool.length * 0.1 * (w - 7)), pool.length - 10), span = pool.length - 1 - lo;
     // walk the difficulty range; at each step take the nearby candidate whose mechanic mix is least used
-    const sig = (d) => d.needs.slice().sort().join('+') + (d.mode === 'together' ? '+together' : ''), used = {}, taken = new Set(), pick = [];
+    const sig = (d) => d.needs.slice().sort().join('+') + (d.mode === 'together' ? '+together' : '') + (d.exitLock ? '+dual' : ''), used = {}, taken = new Set(), pick = [];
     for (let i = 0; i < 10; i++) {
       const at = lo + Math.round((i * span) / 9), win = Math.max(2, Math.round(pool.length * 0.12));
       let best = null;
