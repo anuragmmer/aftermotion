@@ -1,23 +1,16 @@
 /* Aftermotion unlocks: cosmetics (echo faces, orbs, trails, portals), boosts and milestone rewards.
  * Pure rules over the save data from progress.js; no DOM. */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.AMShop = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./characters.js'));
+  else root.AMShop = factory(root.AMChars);
+})(typeof self !== 'undefined' ? self : this, function (Chars) {
   'use strict';
 
   const SLOTS = ['face', 'orb', 'trail', 'portal'];
   const DEFAULTS = { face: 'letter', orb: 'cyan', trail: 'glow', portal: 'classic' };
   // milestone: { world: n } all levels of world n cleared · { streak: n } best daily streak · { allStars: true }
   const CATALOG = [
-    { id: 'letter', slot: 'face', name: 'Classic', desc: 'Each echo shows its letter.', default: true },
-    { id: 'smile', slot: 'face', name: 'Smiley', desc: 'Echoes get faces. Their eyes look where their trace points.', milestone: { world: 1 } },
-    { id: 'sleepy', slot: 'face', name: 'Sleepy', desc: 'Half-awake echoes that still never miss a step.', price: 400 },
-    { id: 'robot', slot: 'face', name: 'Robot', desc: 'A glowing visor that scans toward the next step.', price: 900 },
-    { id: 'cyclops', slot: 'face', name: 'Cyclops', desc: 'One big eye, fixed on the trace.', price: 1500 },
-    { id: 'stareyes', slot: 'face', name: 'Star-struck', desc: 'Starry eyes for star collectors.', milestone: { world: 3 } },
-    { id: 'royal', slot: 'face', name: 'Royal', desc: 'A crowned smile. Only for perfectionists.', milestone: { allStars: true } },
-
+    { id: 'letter', slot: 'face', name: 'Classic', desc: 'Each echo shows its kind\'s shape and letter.', default: true, rarity: 'common' },
     { id: 'cyan', slot: 'orb', name: 'Cyan', desc: 'The original glow.', default: true },
     { id: 'sunset', slot: 'orb', name: 'Sunset', desc: 'Warm orange and rose.', price: 350 },
     { id: 'plasma', slot: 'orb', name: 'Plasma', desc: 'Electric magenta.', price: 800 },
@@ -39,6 +32,9 @@
     { id: 'luck', slot: 'boost', boost: 'luck', qty: 1, name: 'Lucky charm', desc: '+40 Luck at once on a level with coins, so Favour comes sooner.', price: 50 },
     { id: 'skip', slot: 'boost', boost: 'skip', qty: 1, name: 'Skip ticket', desc: 'Stuck? Unlock the next level without clearing this one. Come back for the stars later.', price: 250 },
   ];
+  // Every character in the roster is a face item (the kind of echo is still shown by its badge).
+  const BLURB = { common: 'A cheerful everyday echo.', rare: 'A rare echo with real personality.', epic: 'An epic echo. Turns heads.', legendary: 'Legendary. Few players ever see one.' };
+  Chars.ROSTER.forEach((ch) => CATALOG.splice(1 + Chars.ROSTER.indexOf(ch), 0, Object.assign({ slot: 'face', desc: BLURB[ch.rarity] }, { id: ch.id, name: ch.name, rarity: ch.rarity, price: ch.price, milestone: ch.milestone, char: ch })));
   const byId = (id) => CATALOG.find((c) => c.id === id);
 
   function init(prog) {

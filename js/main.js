@@ -2,7 +2,7 @@
  * Rules live in engine.js, rewards in progress.js; this file only presents state and sends commands. */
 (function () {
   'use strict';
-  const AM = window.AM, LEVELS = window.AMLevels, P = window.AMProgress, SFX = window.AMAudio, Shop = window.AMShop;
+  const AM = window.AM, LEVELS = window.AMLevels, P = window.AMProgress, SFX = window.AMAudio, Shop = window.AMShop, Chars = window.AMChars;
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
   const ROT = { UP: 0, RIGHT: 90, DOWN: 180, LEFT: 270 };
@@ -410,9 +410,9 @@
     for (const h of S.helpers) actor('helper' + h.id, 'helper', '<div class="dia"></div><b></b>', h.x, h.y, seen).querySelector('b').textContent = h.state === 'PERFORM' ? h.hold : h.life;
     G.trail.forEach((p, i) => { const el = actor('trail' + i, 'trail', '<div class="dot t-' + prog.equip.trail + '"></div>', p.x, p.y, seen); el.style.opacity = 0.32 - i * 0.1; el.firstChild.style.transform = 'scale(' + (1 - i * 0.22) + ')'; });
     for (const e of S.echoes) {
-      if (e.hopping && e.hop.origin) actor('ghost' + e.id, 'echo ghost-origin ' + e.type, '<div class="shape"><span>' + glyphOf(e) + '</span></div>', e.hop.origin.x, e.hop.origin.y, seen);
-      const el = actor('echo' + e.id, 'echo ' + e.type + (e.required ? ' required' : '') + (e.state === 'FAVOURED' ? ' fav' : '') + (e.state === 'COOLDOWN' ? ' cool' : ''),
-        '<div class="shape"><span>' + glyphOf(e) + '</span></div><div class="pips"></div><svg class="head"><use href="#i-arrow"/></svg>', e.x, e.y, seen);
+      if (e.hopping && e.hop.origin) actor('ghost' + e.id, 'echo ghost-origin ' + e.type + (charOf() ? ' char' : ''), echoBody(e, true), e.hop.origin.x, e.hop.origin.y, seen);
+      const el = actor('echo' + e.id, 'echo ' + e.type + (charOf() ? ' char' : '') + (e.required ? ' required' : '') + (e.state === 'FAVOURED' ? ' fav' : '') + (e.state === 'COOLDOWN' ? ' cool' : ''),
+        echoBody(e) + '<div class="pips"></div><svg class="head"><use href="#i-arrow"/></svg>', e.x, e.y, seen);
       el.style.setProperty('--c', ECHO_INFO[e.type].color);
       const size = e.counter === 0 ? AM.batchSize(e) : e.activeB;
       const pips = el.querySelector('.pips');
@@ -421,7 +421,7 @@
       const head = el.querySelector('.head');
       head.style.display = e.batch.length && e.type !== 'keeper' ? '' : 'none';
       const look = e.batch.length ? AM.DELTA[e.batch[0]] : [0, 0];
-      el.style.setProperty('--lx', look[0] * 18 + '%'); el.style.setProperty('--ly', look[1] * 14 + '%');
+      el.style.setProperty('--px', look[0] * 4.5 + 'px'); el.style.setProperty('--py', look[1] * 4 + 'px');
       if (e.batch.length) head.style.transform = 'rotate(' + ROT[e.batch[0]] + 'deg)';
     }
     for (const e of S.echoes) {
@@ -439,8 +439,11 @@
     // hint marker
     if (G.hint) {
       const a = G.hint;
-      if (a.k === 'move') { const d = AM.DELTA[a.d]; actor('hint', 'hintArrow', ARROW(a.d), S.player.x + d[0], S.player.y + d[1], seen).innerHTML = ARROW(a.d); }
-      else if (a.k === 'hop') actor('hint', 'hintArrow', '<div class="hintTile"></div>', a.x, a.y, seen);
+      if (a.k === 'move') {
+        const d = AM.DELTA[a.d];
+        const el = actor('hint', 'hintGhost', '<div class="hring"><i></i></div><div class="hg"><div class="orb o-' + prog.equip.orb + '"></div></div>', S.player.x, S.player.y, seen);
+        el.style.setProperty('--hx', d[0]); el.style.setProperty('--hy', d[1]);
+      } else if (a.k === 'hop') actor('hint', 'hintGhost', '<div class="hring" style="transform:none"><i></i></div>', a.x, a.y, seen);
     }
     sweep(seen);
     renderPanel();
@@ -452,7 +455,7 @@
   function buildCards() {
     $('#echoCards').innerHTML = G.S.echoes.map((e) => {
       const info = ECHO_INFO[e.type];
-      return '<div class="ecard" data-id="' + e.id + '" style="--c:' + info.color + '"><div class="ecard-top"><div class="glyph ' + e.type + '"><span>' + glyphOf(e) + '</span></div>' +
+      return '<div class="ecard" data-id="' + e.id + '" style="--c:' + info.color + '"><div class="ecard-top">' + cardGlyph(e) +
         '<div><b>' + nm(e) + '</b><small>' + esc(info.role) + '</small></div>' + (e.required ? '<span class="etag">REQUIRED</span>' : '') + '</div>' +
         '<div class="tape"></div><div class="estatus"></div></div>';
     }).join('');
@@ -513,6 +516,10 @@
     $('#btnOracle').setAttribute('aria-pressed', G.oracle);
     const price = P.hintPrice(prog, today());
     $('#hintLabel').textContent = !price ? 'Hint · free' : prog.inv.hint ? 'Hint · ' + prog.inv.hint + ' left' : 'Hint · ' + price;
+    // hint highlights the matching control
+    $$('.dpad button').forEach((b) => b.classList.toggle('hinted', !!G.hint && G.hint.k === 'move' && b.dataset.dir === G.hint.d));
+    $('#btnFavour').classList.toggle('hinted', !!G.hint && G.hint.k === 'favour');
+    $('#btnHop').classList.toggle('hinted', !!G.hint && G.hint.k === 'hop');
     // boosts
     const coinsHere = G.startCoins > 0 || L.luck0 > 0;
     $('#btnMoves').hidden = !L.maxMoves || !prog.inv.moves || G.movesUsed || S.status === 'won';
@@ -560,6 +567,39 @@
   // Echo faces: 'letter' shows the echo's letter; any other face hides it and draws eyes + mouth.
   const faceHTML = (id) => (id === 'letter' ? '' : '<i class="face f-' + id + '"><b></b><b></b><u></u></i>');
   const letterHTML = (t, id, n) => '<em class="g' + (id === 'letter' ? '' : ' hide') + '">' + ECHO_INFO[t].glyph + (n && id === 'letter' ? '<sub>' + n + '</sub>' : '') + '</em>';
+  const charOf = () => (prog.equip.face !== 'letter' && Chars.ROSTER.find((c) => c.id === prog.equip.face)) || null;
+  const kindBadge = (e) => ECHO_INFO[e.type].glyph + (dupNo(e) ? dupNo(e) : '');
+  // Board markup for one echo: the equipped character standing on a platform in its kind's colour,
+  // with a letter badge, or the classic kind shape when no character is equipped.
+  function echoBody(e, ghost) {
+    const ch = charOf();
+    if (!ch) return '<div class="shape"><span>' + glyphOf(e) + '</span></div>';
+    return '<div class="plat"></div><div class="charbox">' + Chars.render(ch) + '</div>' + (ghost ? '' : '<b class="kb">' + kindBadge(e) + '</b>');
+  }
+  function cardGlyph(e) {
+    const ch = charOf();
+    return ch ? '<div class="glyph charglyph" style="--c:' + ECHO_INFO[e.type].color + '">' + Chars.render(ch) + '</div>'
+      : '<div class="glyph ' + e.type + '"><span>' + glyphOf(e) + '</span></div>';
+  }
+  /* Character moods: happy when it steps, dizzy when it bumps, asleep when you stop playing. */
+  function mood(id, m, ms) {
+    const el = actorEls.get('echo' + id), box = el && el.querySelector('.charbox');
+    if (!box) return;
+    ['happy', 'dizzy', 'sleep'].forEach((k) => box.classList.remove('mood-' + k));
+    void box.offsetWidth;
+    box.classList.add('mood-' + m);
+    clearTimeout(box._t);
+    if (ms) box._t = setTimeout(() => box.classList.remove('mood-' + m), ms);
+  }
+  let lastInput = Date.now();
+  function wake() {
+    lastInput = Date.now();
+    $$('.charbox.mood-sleep').forEach((b) => b.classList.remove('mood-sleep'));
+  }
+  setInterval(() => {
+    if (screen !== 'game' || !G || G.S.status !== 'play' || Date.now() - lastInput < 9000) return;
+    G.S.echoes.forEach((e) => { const box = actorEls.get('echo' + e.id) && actorEls.get('echo' + e.id).querySelector('.charbox'); if (box && !box.classList.contains('mood-sleep')) mood(e.id, 'sleep', 0); });
+  }, 1000);
   const glyphOf = (e) => letterHTML(e.type, prog.equip.face, dupNo(e)) + faceHTML(prog.equip.face) + (dupNo(e) && prog.equip.face !== 'letter' ? '<sup class="num">' + dupNo(e) + '</sup>' : '');
   const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
   const walker = (e) => e.type === 'trace' || e.type === 'flicker';
@@ -700,6 +740,7 @@
   const busy = () => !$('#overlay').hidden || screen !== 'game' || !G;
   function move(dir) {
     if (busy() || G.S.status !== 'play') return;
+    wake();
     const st = tutStep();
     if (st && st.ack) { toast('Tap Next in the coach panel to continue.'); flashCoach(); return; }
     if (st && /^(UP|RIGHT|DOWN|LEFT)$/.test(st.expect || '') && dir !== st.expect) { toast('For this step, press ' + ({ UP: '↑', RIGHT: '→', DOWN: '↓', LEFT: '←' })[st.expect] + '.'); flashCoach(); return; }
@@ -710,6 +751,7 @@
     commit(r.state, r.events, { kind: 'move', dir });
   }
   function commit(next, events, meta) {
+    wake();
     const prev = G.S;
     G.undo.push({ S: prev, trail: G.trail.slice(1) });
     if (G.undo.length > 400) G.undo.shift();
@@ -760,8 +802,8 @@
     const c = price && prog.inv.hint ? (Shop.useBoost(prog, 'hint'), { ok: true, token: true, cost: 0 }) : P.chargeHint(prog, today()); persist();
     G.usedHint = true; G.hint = r.path[0];
     const a = G.hint;
-    toast((c.free ? 'Free daily hint: ' : c.token ? 'Hint (' + prog.inv.hint + ' tokens left): ' : 'Hint (−' + c.cost + ' coins): ') + (a.k === 'move' ? 'move ' + WORD[a.d] + ' (green arrow on the board).' : a.k === 'favour' ? 'press Favour now.' : 'hop Flicker onto the green square.'));
-    if (a.k === 'favour') anim($('#btnFavour'), [{ transform: 'scale(1.15)' }, { transform: 'scale(1)' }], { duration: 400, iterations: 3 });
+    say([{ h: (c.free ? 'Free daily hint: ' : c.token ? 'Hint (' + prog.inv.hint + ' left): ' : 'Hint (−' + c.cost + ' coins): ') +
+      (a.k === 'move' ? 'move ' + arrHtml(a.d) + '. Follow your ghost onto the glowing tile.' : a.k === 'favour' ? 'press Favour now (the glowing button).' : 'hop Flicker onto the glowing tile (Hop button, then tap it).'), c: 'good' }]);
     SFX.coin(); render();
   }
 
@@ -792,8 +834,9 @@
 
   /* ---------- shop ---------- */
   let shopTab = 'face';
-  const TAB_NAMES = { face: 'Echo faces', orb: 'Orbs', trail: 'Trails', portal: 'Portals', boost: 'Boosts' };
+  const TAB_NAMES = { face: 'Characters', orb: 'Orbs', trail: 'Trails', portal: 'Portals', boost: 'Boosts' };
   function previewHTML(item) {
+    if (item.slot === 'face' && item.char) return '<button class="preview charpv" data-pv="' + item.id + '" aria-label="Play with ' + esc(item.name) + '"><span class="charbox">' + Chars.render(item.char) + '</span><span class="plat" style="--c:' + Chars.RARITY[item.rarity].color + '"></span></button>';
     if (item.slot === 'face') return '<div class="preview">' + ['trace', 'flicker', 'mason'].map((t) => '<div class="glyph ' + t + '" style="--g:46px;--ts:46px"><span>' + letterHTML(t, item.id) + faceHTML(item.id) + '</span></div>').join('') + '</div>';
     if (item.slot === 'orb') return '<div class="preview"><div class="pv-actor"><div class="orb o-' + item.id + '"></div></div></div>';
     if (item.slot === 'trail') return '<div class="preview"><div class="pv-trail">' + [0.3, 0.55, 0.8].map((o) => '<span class="trail" style="position:relative;width:26px;height:26px;opacity:' + o + '"><span class="dot t-' + item.id + '" style="position:absolute;inset:4px;border-radius:50%"></span></span>').join('') + '<div class="pv-actor" style="width:56px;height:56px"><div class="orb o-' + prog.equip.orb + '"></div></div></div></div>';
@@ -809,7 +852,13 @@
       : '<div class="gb-txt"><b>You own everything. Legend!</b></div>';
     $('#shopTabs').innerHTML = Object.keys(TAB_NAMES).map((k) => '<button class="tab" role="tab" data-tab="' + k + '" aria-selected="' + (k === shopTab) + '">' + TAB_NAMES[k] + '</button>').join('');
     $$('#shopTabs .tab').forEach((b) => (b.onclick = () => { shopTab = b.dataset.tab; SFX.click(); renderShop(); }));
-    $('#shopGrid').innerHTML = Shop.CATALOG.filter((c) => c.slot === shopTab).map((it) => {
+    const RANK = { common: 0, rare: 1, epic: 2, legendary: 3 };
+    const list = Shop.CATALOG.filter((c) => c.slot === shopTab);
+    if (shopTab === 'face') list.sort((a, b) => (b.default ? 1 : 0) - (a.default ? 1 : 0) || RANK[a.rarity] - RANK[b.rarity] || (a.price || 1e9) - (b.price || 1e9));
+    let lastRarity = null;
+    $('#shopGrid').innerHTML = list.map((it) => {
+      const head = shopTab === 'face' && !it.default && it.rarity !== lastRarity ? '<div class="rarity-head" style="--rc:' + Chars.RARITY[it.rarity].color + '">' + Chars.RARITY[it.rarity].label + ' · ' + list.filter((q) => q.rarity === it.rarity && !q.default).length + ' characters</div>' : '';
+      if (shopTab === 'face' && !it.default) lastRarity = it.rarity;
       const owned = it.slot !== 'boost' && Shop.owns(prog, LEVELS, it), on = owned && prog.equip[it.slot] === it.id;
       let btn;
       if (it.slot === 'boost') btn = '<button class="btn gold" data-buy="' + it.id + '"' + (prog.coins < it.price ? ' disabled' : '') + '><i class="coin-ico" style="width:18px;height:18px"></i>' + it.price + '</button>';
@@ -818,7 +867,7 @@
       else if (it.price) btn = '<button class="btn gold" data-buy="' + it.id + '"' + (prog.coins < it.price ? ' disabled' : '') + '><i class="coin-ico" style="width:18px;height:18px"></i>' + it.price + '</button>';
       else btn = '<button class="btn" disabled><svg><use href="#i-lock"/></svg>Locked</button>';
       const tag = it.milestone ? (owned ? 'EARNED REWARD' : 'REWARD: ' + Shop.milestoneText(it).toUpperCase()) : it.default ? 'STARTER' : it.slot === 'boost' ? 'BOOST' : 'SHOP';
-      return '<div class="item' + (on ? ' equipped' : '') + (!owned && it.slot !== 'boost' && !it.price ? ' locked' : '') + '">' +
+      return head + '<div class="item' + (it.rarity && shopTab === 'face' ? ' r-' + it.rarity : '') + (on ? ' equipped' : '') + (!owned && it.slot !== 'boost' && !it.price ? ' locked' : '') + '">' +
         (it.slot === 'boost' ? '<span class="owned-n">×' + prog.inv[it.boost] + '</span>' : '') + previewHTML(it) +
         '<span class="tagline">' + esc(tag) + '</span><h4>' + esc(it.name) + '</h4><p>' + esc(it.desc) + '</p>' + btn + '</div>';
     }).join('');
@@ -831,6 +880,15 @@
       toast(it.slot === 'boost' ? it.name + ' added. You have ' + prog.inv[it.boost] + '.' : it.name + ' unlocked and equipped!');
       coins(); renderShop();
     }));
+    // tap a character to see its moods; hover makes it happy
+    $$('#shopGrid .charpv').forEach((b) => {
+      const box = b.querySelector('.charbox'), moods = ['happy', 'dizzy', 'sleep', ''];
+      let k = 0;
+      b.onclick = () => { ['happy', 'dizzy', 'sleep'].forEach((m) => box.classList.remove('mood-' + m)); const m = moods[k++ % moods.length]; if (m) box.classList.add('mood-' + m); (m === 'dizzy' ? SFX.echoBlocked : m === 'sleep' ? SFX.undo : SFX.fire)(); };
+      b.onpointerenter = () => { if (!box.className.includes('mood-')) box.classList.add('mood-happy'); };
+      b.onpointerleave = () => box.classList.remove('mood-happy');
+      b.onpointermove = (ev) => { const r = b.getBoundingClientRect(); box.style.setProperty('--px', ((ev.clientX - r.left) / r.width - 0.5) * 9 + 'px'); box.style.setProperty('--py', ((ev.clientY - r.top) / r.height - 0.5) * 8 + 'px'); };
+    });
     $$('#shopGrid [data-equip]').forEach((b) => (b.onclick = () => { Shop.equip(prog, LEVELS, b.dataset.equip); persist(); applySettings(); SFX.click(); renderShop(); }));
     coins();
   }
@@ -931,9 +989,10 @@
       }
     }
     for (const e of events) {
-      if (e.type === 'ECHO_MOVED') { const ec = next.echoes.find((q) => q.id === e.echo); ripple(ec.x, ec.y, ECHO_INFO[ec.type].color); SFX.fire(); buzz(15); }
+      if (e.type === 'ECHO_MOVED') { const ec = next.echoes.find((q) => q.id === e.echo); ripple(ec.x, ec.y, ECHO_INFO[ec.type].color); SFX.fire(); buzz(15); mood(e.echo, 'happy', 750); }
+      if (e.type === 'BUILD' || (e.type === 'HELPER' && /sends|reached/.test(e.text))) mood(e.echo, 'happy', 750);
       if (e.type === 'ECHO_BLOCKED') {
-        SFX.echoBlocked();
+        SFX.echoBlocked(); mood(e.echo, 'dizzy', 1000);
         const el = actorEls.get('echo' + e.echo);
         if (el) anim(el.querySelector('.shape'), [{ translate: '0 0' }, { translate: '-5px 0' }, { translate: '5px 0' }, { translate: '0 0' }], { duration: 220 });
       }
@@ -954,6 +1013,7 @@
     for (const l of Object.keys(next.open)) if (next.open[l] !== prev.open[l]) SFX.door(next.open[l]);
     if (next.status === 'won') {
       SFX.win(); buzz([20, 40, 60]);
+      $$('.charbox').forEach((b) => b.classList.add('party'));
       const ex = G.L.exit; ripple(ex.x, ex.y, '#6dffb3'); setTimeout(() => ripple(ex.x, ex.y, '#4fe3ff'), 150);
     }
   }

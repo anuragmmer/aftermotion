@@ -186,7 +186,7 @@ t('Shop: defaults owned, buying cosmetics and boosts, equipping, milestones', ()
   assert.ok(Shop.owns(prog, LEVELS, Shop.byId('cyan')));
   assert.ok(!Shop.buy(prog, LEVELS, 'robot').ok, 'too poor');
   prog.coins = 1000;
-  assert.ok(Shop.buy(prog, LEVELS, 'robot').ok); assert.strictEqual(prog.coins, 100);
+  assert.ok(Shop.buy(prog, LEVELS, 'robot').ok); assert.strictEqual(prog.coins, 1000 - Shop.byId('robot').price);
   assert.ok(!Shop.buy(prog, LEVELS, 'robot').ok, 'no double buy');
   assert.ok(Shop.equip(prog, LEVELS, 'robot')); assert.strictEqual(prog.equip.face, 'robot');
   assert.ok(!Shop.equip(prog, LEVELS, 'smile'), 'milestone not reached yet');
@@ -197,6 +197,18 @@ t('Shop: defaults owned, buying cosmetics and boosts, equipping, milestones', ()
   assert.deepStrictEqual(fresh, ['smile']); assert.deepStrictEqual(Shop.newUnlocks(prog, LEVELS), [], 'reported once');
   assert.ok(Shop.equip(prog, LEVELS, 'smile'));
   assert.ok(Shop.nextGoal(prog, LEVELS).item.price);
+});
+t('Characters: at least 50 unique, each renders all four moods and tracking pupils', () => {
+  const Chars = require('../js/characters.js');
+  assert.ok(Chars.ROSTER.length >= 50);
+  assert.strictEqual(new Set(Chars.ROSTER.map((c) => c.id)).size, Chars.ROSTER.length);
+  for (const c of Chars.ROSTER) {
+    const svg = Chars.render(c);
+    for (const k of ['e-n', 'e-h', 'e-x', 'e-z', 'm-n', 'm-h', 'm-x', 'm-z']) assert.ok(svg.includes('class="' + k) || svg.includes(' ' + k + '"'), c.id + ' ' + k);
+    assert.ok(!/NaN|undefined/.test(svg), c.id + ' bad svg');
+    assert.ok(c.price || c.milestone, c.id + ' needs a price or milestone');
+  }
+  ['kitty', 'kingcat', 'neonking', 'skully', 'skullking', 'neonskull'].forEach((id) => assert.ok(Chars.ROSTER.find((c) => c.id === id), id));
 });
 t('Boosted runs cap at 2 stars; skip tickets unlock the next level without stars', () => {
   const prog = P.defaults();

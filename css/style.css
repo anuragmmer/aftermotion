@@ -530,3 +530,70 @@ body.won .board-frame::after{box-shadow:inset 0 0 0 4px var(--mint),inset 0 0 80
 
 .item .btn .coin-ico{background:#fff3c4;box-shadow:inset 0 -3px 0 #c98a12}
 .preview .glyph{flex-shrink:1}
+
+/* ---------- characters ---------- */
+.chr{width:100%;height:100%;overflow:visible;display:block}
+.chr .e-h,.chr .e-x,.chr .e-z,.chr .m-h,.chr .m-x,.chr .m-z{display:none}
+.mood-happy .chr .e-n,.mood-happy .chr .m-n,.party .chr .e-n,.party .chr .m-n{display:none}
+.mood-happy .chr .e-h,.mood-happy .chr .m-h,.party .chr .e-h,.party .chr .m-h{display:inline}
+.mood-dizzy .chr .e-n,.mood-dizzy .chr .m-n{display:none}.mood-dizzy .chr .e-x,.mood-dizzy .chr .m-x{display:inline}
+.mood-sleep .chr .e-n,.mood-sleep .chr .m-n{display:none}.mood-sleep .chr .e-z,.mood-sleep .chr .m-z{display:inline}
+.chr .e-n{transform-box:fill-box;transform-origin:center;animation:blink 4.6s infinite}
+@keyframes blink{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.08)}}
+.chr .pp{transform:translate(var(--px,0px),var(--py,0px));transition:transform .22s ease-out}
+.chr.neon{filter:drop-shadow(0 0 1.5px var(--neon)) drop-shadow(0 0 6px var(--neon));animation:neonFlicker 4s infinite}
+@keyframes neonFlicker{0%,100%{opacity:1}91%{opacity:1}92%{opacity:.55}93%{opacity:1}95%{opacity:.75}96%{opacity:1}}
+.chr.prism{animation:prism 4s linear infinite}
+@keyframes prism{to{filter:hue-rotate(360deg)}}
+.chr .glowy{filter:drop-shadow(0 0 2.5px #ffffffcc)}
+.chr .blinky{animation:blinky 1.3s steps(2) infinite}
+@keyframes blinky{50%{opacity:.3}}
+.chr .flame{transform-box:fill-box;transform-origin:50% 100%;animation:flame .35s ease-in-out infinite alternate}
+.chr .flame.f2{animation-duration:.27s}
+@keyframes flame{to{transform:scale(1.08,.9) skewX(4deg)}}
+.chr .twinkle{animation:twinkle 1.8s ease-in-out infinite}
+@keyframes twinkle{50%{opacity:.2}}
+.chr .zz{font:900 15px Nunito,sans-serif;animation:zz 2.2s ease-in-out infinite}
+.chr .zz.z2{animation-delay:.6s}
+@keyframes zz{0%{opacity:0;transform:translate(0,6px)}40%{opacity:1}100%{opacity:0;transform:translate(6px,-8px)}}
+.charbox{display:block;position:relative}
+.mood-happy .chr{animation:joy .5s cubic-bezier(.3,1.6,.5,1)}
+@keyframes joy{0%{transform:translateY(0) scale(1)}35%{transform:translateY(-14%) scale(1.06,.94)}100%{transform:translateY(0) scale(1)}}
+.mood-dizzy .chr{animation:dizzy .7s ease-in-out}
+@keyframes dizzy{20%{transform:rotate(-12deg)}45%{transform:rotate(10deg)}70%{transform:rotate(-6deg)}100%{transform:rotate(0)}}
+.mood-sleep .chr{animation:snooze 2.6s ease-in-out infinite}
+@keyframes snooze{50%{transform:translateY(4%) scale(1.02,.97)}}
+.party .chr{animation:party .5s ease-in-out infinite alternate}
+@keyframes party{from{transform:translateY(0) rotate(-6deg)}to{transform:translateY(-10%) rotate(6deg)}}
+
+/* on the board: character on a platform in its kind's colour, with a kind badge */
+.echo.char .charbox{position:absolute;inset:-4% 2% 12% 2%;animation:idleBob 2.4s ease-in-out infinite}
+@keyframes idleBob{50%{transform:translateY(-3%)}}
+.echo.char .plat{position:absolute;left:12%;right:12%;bottom:3%;height:17%;border-radius:50%;background:radial-gradient(closest-side,var(--c),color-mix(in srgb,var(--c) 40%,transparent) 70%,transparent);box-shadow:0 0 14px color-mix(in srgb,var(--c) 70%,transparent)}
+.echo.char.required .plat{box-shadow:0 0 0 2px #fff8,0 0 18px var(--c)}
+.kb{position:absolute;left:-4%;top:-6%;min-width:32%;padding:0 3px;height:32%;border-radius:999px;background:var(--c);color:#0d0922;font:400 calc(var(--ts,56px)*.18)/calc(var(--ts,56px)*.32) var(--disp);text-align:center;box-shadow:0 0 0 2px #0d0922;z-index:3}
+.echo.char .pips{bottom:-2%}
+.echo.char.ghost-origin .charbox{opacity:.35;filter:grayscale(.6)}
+.glyph.charglyph{position:relative;border-radius:50%;background:var(--panel2);box-shadow:inset 0 0 0 3px var(--c)}
+.glyph.charglyph .chr{position:absolute;inset:4%;width:92%;height:92%}
+.glyph.charglyph .kb{font-size:11px;line-height:17px;height:17px;min-width:17px;left:-6px;top:-6px}
+
+/* shop character cards */
+.preview.charpv{border:0;cursor:pointer;padding:6px;height:120px;background:radial-gradient(circle at 50% 70%,color-mix(in srgb,var(--rc,#4fe3ff) 18%,var(--floor)),var(--floor))}
+.preview.charpv .charbox{width:96px;height:96px;z-index:1}
+.preview.charpv .plat{position:absolute;left:30%;right:30%;bottom:8px;height:14px;border-radius:50%;background:radial-gradient(closest-side,var(--c),transparent);opacity:.8}
+.rarity-head{grid-column:1/-1;font:400 22px var(--disp);color:var(--rc);margin-top:8px;border-bottom:2px solid color-mix(in srgb,var(--rc) 40%,transparent);padding-bottom:4px}
+.item.r-rare{box-shadow:0 0 0 2px #4fe3ff55}.item.r-epic{box-shadow:0 0 0 2px #c49bff77}.item.r-legendary{box-shadow:0 0 0 2px #ffc24b,0 0 24px #ffc24b44}
+.item.r-legendary .preview.charpv{--rc:#ffc24b}.item.r-epic .preview.charpv{--rc:#c49bff}.item.r-rare .preview.charpv{--rc:#4fe3ff}
+.item.equipped{box-shadow:0 0 0 3px var(--mint)!important}
+
+/* hint: a ghost of you glides into the tile to step on */
+.hintGhost{z-index:4;pointer-events:none}
+.hintGhost .hg{position:absolute;inset:0;animation:hintGlide 1.4s ease-in-out infinite}
+.hintGhost .hg .orb{opacity:.6;box-shadow:0 0 18px var(--mint)}
+@keyframes hintGlide{0%{transform:translate(0,0);opacity:0}15%{opacity:1}60%{transform:translate(calc(var(--hx,0)*100%),calc(var(--hy,0)*100%));opacity:1}100%{transform:translate(calc(var(--hx,0)*100%),calc(var(--hy,0)*100%));opacity:0}}
+.hintGhost .hring{position:absolute;inset:0;transform:translate(calc(var(--hx,0)*100%),calc(var(--hy,0)*100%))}
+.hintGhost .hring i{position:absolute;inset:8%;border-radius:50%;border:3px solid var(--mint);box-shadow:0 0 16px var(--mint),inset 0 0 14px #6dffb366;animation:hringPulse 1.4s ease-in-out infinite}
+@keyframes hringPulse{50%{transform:scale(.82);opacity:.6}}
+.dpad button.hinted,.btn.hinted{box-shadow:0 0 0 3px var(--mint),0 0 22px var(--mint)!important;animation:hintBtn 1s ease-in-out infinite}
+@keyframes hintBtn{50%{transform:translateY(-3px)}}
