@@ -35,7 +35,7 @@ const RECIPES = {
     const kinds = rng() < 0.5 ? ['T', 'T'] : ['T', 'F'];
     kinds.forEach((k) => put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), k));
     const together = rng() < 0.5;
-    return { map: g, mode: together ? 'together' : 'through', required: together ? [1] : [], needs: [...new Set(kinds)] };
+    return { map: g, mode: together ? 'together' : 'through', required: together ? [1] : [], needs: [...new Set(kinds)], core: ['T'] };
   },
   // World 8, Heavy Rhythm: Trace plus crates, two doors in a row
   8: (rng) => {
@@ -70,7 +70,7 @@ const RECIPES = {
     put(g, cellIn(rng, g, 1, near, 1, H - 2), 'F');
     const coins = rng() < 0.5;
     if (coins) { put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'c'); put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'c'); }
-    return { map: g, mode: 'through', required: [], needs: crate ? ['F', 'hop', 'crate'] : ['F', 'hop'], luck0: coins ? 60 : 0, coins };
+    return { map: g, mode: 'through', required: [], needs: crate ? ['F', 'hop', 'crate'] : ['F', 'hop'], luck0: coins ? 60 : 0, coins, core: crate ? ['F', 'hop', 'crate'] : ['F', 'hop'] };
   },
   // World 10, Workshop: Mason and Keeper hold plates for each other
   10: (rng) => {
@@ -86,7 +86,7 @@ const RECIPES = {
     put(g, cellIn(rng, g, 1, left, 1, H - 2), 'P');
     const kinds = both ? ['M', 'K'] : [rng() < 0.5 ? 'M' : 'K'];
     kinds.forEach((k) => put(g, cellIn(rng, g, 1, left, 1, H - 2), k));
-    return { map: g, mode: 'through', required: [], needs: kinds };
+    return { map: g, mode: 'through', required: [], needs: kinds, core: kinds };
   },
   // World 11, Storm Front: the Blocker interferes while echoes and crates hold the doors
   11: (rng) => {
@@ -96,7 +96,7 @@ const RECIPES = {
     scatter(rng, g, 2 + Math.floor(rng() * 4), 1, dx - 1);
     put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'a');
     put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'P');
-    const k = ['T', 'F', 'M'][Math.floor(rng() * 3)];
+    const k = ['T', 'F', 'M', 'F', 'M'][Math.floor(rng() * 5)];
     put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), k);
     put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'Z');
     if (rng() < 0.35) put(g, cellIn(rng, g, 2, dx - 2, 2, H - 3), 'o');
@@ -113,28 +113,16 @@ function candidate(world, rng) {
   // time-boxed: anything the solver cannot settle quickly is skipped (it would be too slow to verify)
   const s = solve(def, 400000, 6000);
   if (s.result !== 'win' || s.moves < 8) return null;
-  for (const n of def.needs) if (solve(ABLATE[n](def), 400000, 6000).result !== 'stuck') return null;
+  // keep the elements the level truly needs; the recipe's core ones (listed first in 'core') must be among them
+  const needed = def.needs.filter((n) => solve(ABLATE[n](def), 400000, 6000).result === 'stuck');
+  if (!needed.length || (r.core || []).some((n) => !needed.includes(n))) return null;
+  // every echo on the board should matter: an echo kind that is not needed makes the level confusing
+  if (def.needs.filter((n) => /^[TFMK]$/.test(n)).some((n) => !needed.includes(n)) && !r.optionalEchoes) return null;
+  def.needs = needed;
   if (r.enemy) { const free = solve(Object.assign({}, def, { map: def.map.map((row) => row.replace('Z', '.')) }), 400000, 6000); if (free.result !== 'win' || free.moves >= s.moves) return null; }
   const label = (a) => (a.k === 'move' ? a.d[0] : a.k === 'favour' ? 'F!' : 'H(' + a.x + ',' + a.y + ')');
   def.par = s.moves; def.states = s.states; def.path = s.path.map(label).join('');
   return def;
-}
-
-if (require.main === module) {
-  const args = process.argv.slice(2);
-  if (args[0] === '--apply') apply();
-  else {
-    const world = +args[0], tries = +(args[1] || 400), seed = +(args[2] || world * 7919), out = path.join(GEN, 'w' + world + (args[3] ? '-' + args[3] : '') + '.json');
-    const rng = rngOf(seed), found = [], seen = new Set();
-    if (!fs.existsSync(GEN)) fs.mkdirSync(GEN);
-    for (let i = 0; i < tries; i++) {
-      const d = candidate(world, rng);
-      if (!d || seen.has(d.map.join('/'))) continue;
-      seen.add(d.map.join('/')); found.push(d);
-      console.log('w' + world, 'found', found.length, 'par', d.par, 'states', d.states);
-      fs.writeFileSync(out, JSON.stringify(found, null, 1));
-    }
-  }
 }
 
 /* ---------- --apply: choose 10 per world and append them to js/levels.js ---------- */
@@ -186,12 +174,25 @@ function apply() {
     if (!files.length) continue;
     const uniq = new Map();
     files.forEach((n) => JSON.parse(fs.readFileSync(path.join(GEN, n))).forEach((d) => uniq.set(d.map.join('/'), d)));
-    const pool = [...uniq.values()].sort((a, b) => a.par * 1000 + a.states / 1000 - (b.par * 1000 + b.states / 1000));
+    const pool = [...uniq.values()].filter((d) => d.par <= 60).sort((a, b) => a.par * 1000 + a.states / 1000 - (b.par * 1000 + b.states / 1000));
     if (pool.length < 10) throw new Error('world ' + w + ' has only ' + pool.length + ' candidates');
     // spread across the difficulty range, hardest last (the boss)
     // later worlds start further up the difficulty range
     const lo = Math.min(Math.floor(pool.length * 0.1 * (w - 7)), pool.length - 10), span = pool.length - 1 - lo;
-    const pick = Array.from({ length: 10 }, (_, i) => pool[lo + Math.round((i * span) / 9)]);
+    // walk the difficulty range; at each step take the nearby candidate whose mechanic mix is least used
+    const sig = (d) => d.needs.slice().sort().join('+') + (d.mode === 'together' ? '+together' : ''), used = {}, taken = new Set(), pick = [];
+    for (let i = 0; i < 10; i++) {
+      const at = lo + Math.round((i * span) / 9), win = Math.max(2, Math.round(pool.length * 0.12));
+      let best = null;
+      for (let j = Math.max(lo, at - win); j <= Math.min(pool.length - 1, at + win); j++) {
+        if (taken.has(j)) continue;
+        const score = (used[sig(pool[j])] || 0) * 1000 + Math.abs(j - at);
+        if (!best || score < best.score) best = { j, score };
+      }
+      if (!best) for (let j = lo; j < pool.length; j++) if (!taken.has(j)) { best = { j }; break; }
+      taken.add(best.j); used[sig(pool[best.j])] = (used[sig(pool[best.j])] || 0) + 1; pick.push(pool[best.j]);
+    }
+    pick.sort((a, b) => a.par * 1000 + a.states / 1000 - (b.par * 1000 + b.states / 1000));
     const M = WORLD_META[w];
     worlds += `    { id: ${w}, name: ${q(M.name)}, blurb: ${q(M.blurb)}, color: ${q(M.color)} },\n`;
     pick.forEach((d, i) => {
@@ -212,3 +213,22 @@ function apply() {
   console.log('levels now', id);
 }
 module.exports = { RECIPES, candidate };
+
+// run after everything below is defined
+if (require.main === module) {
+  const args = process.argv.slice(2);
+  if (args[0] === '--apply') apply();
+  else {
+    const world = +args[0], tries = +(args[1] || 400), seed = +(args[2] || world * 7919), out = path.join(GEN, 'w' + world + (args[3] ? '-' + args[3] : '') + '.json');
+    const rng = rngOf(seed), found = [], seen = new Set();
+    if (!fs.existsSync(GEN)) fs.mkdirSync(GEN);
+    for (let i = 0; i < tries; i++) {
+      const d = candidate(world, rng);
+      if (!d || seen.has(d.map.join('/'))) continue;
+      seen.add(d.map.join('/')); found.push(d);
+      console.log('w' + world, 'found', found.length, 'par', d.par, 'states', d.states);
+      fs.writeFileSync(out, JSON.stringify(found, null, 1));
+    }
+  }
+}
+
