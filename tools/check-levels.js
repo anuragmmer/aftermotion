@@ -28,9 +28,9 @@ function hopOff(def) {
   return o;
 }
 const label = (a) => (a.k === 'move' ? a.d[0] : a.k === 'favour' ? 'F!' : `H(${a.x},${a.y})`);
-function solve(def, cap) {
+function solve(def, cap, ms) {
   const { level, state } = AM.loadLevel(def);
-  const t = Date.now(), r = AM.canWin(level, state, { cap: cap || 1200000 });
+  const t = Date.now(), r = AM.canWin(level, state, { cap: cap || 1200000, ms: ms || Infinity });
   return Object.assign(r, { ms: Date.now() - t, moves: r.path ? r.path.filter((a) => a.k === 'move').length : null });
 }
 function check(def) {
@@ -41,7 +41,7 @@ function check(def) {
   }
   return out;
 }
-module.exports = { check, solve };
+module.exports = { check, solve, ABLATE };
 if (require.main === module) {
   const args = process.argv.slice(2);
   const file = args[0] && !/^\d+$/.test(args[0]) ? path.resolve(args.shift()) : path.join(__dirname, '../js/levels.js');

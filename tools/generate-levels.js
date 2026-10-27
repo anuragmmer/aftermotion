@@ -1,0 +1,208 @@
+// Level generator for worlds 7+. Builds rooms from a per-world recipe, proves each candidate with
+// the engine's solver, keeps only levels where every taught element is required ("needs"
+// ablations, same as tools/check-levels.js), and picks 10 per world in rising difficulty.
+// usage: node tools/generate-levels.js <world> [tries] [seed]   -> tools/gen/w<world>.json
+//        node tools/generate-levels.js --apply                   -> appends tools/gen/*.json to js/levels.js
+const fs = require('fs');
+const path = require('path');
+const AM = require('../js/engine.js');
+const { solve, ABLATE } = require('./check-levels.js');
+
+const GEN = path.join(__dirname, 'gen');
+function rngOf(seed) { let x = seed >>> 0 || 1; return () => ((x = (Math.imul(x, 1664525) + 1013904223) >>> 0) / 4294967296); }
+
+/* ---------- room building blocks ---------- */
+function blank(W, H) { const g = []; for (let y = 0; y < H; y++) g.push(Array.from({ length: W }, (_, x) => (x === 0 || y === 0 || x === W - 1 || y === H - 1 ? '#' : '.'))); return g; }
+function cellIn(rng, g, x0, x1, y0, y1) {
+  for (let i = 0; i < 200; i++) { const x = x0 + Math.floor(rng() * (x1 - x0 + 1)), y = y0 + Math.floor(rng() * (y1 - y0 + 1)); if (g[y] && g[y][x] === '.') return { x, y }; }
+  return null;
+}
+function put(g, c, ch) { if (!c) throw new Error('no room'); g[c.y][c.x] = ch; return c; }
+// a full-height wall at column x with a door letter at a random row
+function divider(rng, g, x, door) { const H = g.length; for (let y = 1; y < H - 1; y++) g[y][x] = '#'; const y = 1 + Math.floor(rng() * (H - 2)); g[y][x] = door; return { x, y }; }
+function scatter(rng, g, n, x0, x1) { for (let i = 0; i < n; i++) { const c = cellIn(rng, g, x0, x1, 1, g.length - 2); if (c) g[c.y][c.x] = '#'; } }
+
+/* ---------- world recipes: return { map, mode, required, needs, ... } ---------- */
+const RECIPES = {
+  // World 7, Echo Chamber: twin Traces and Flicker together, echoes that must escape with you
+  7: (rng) => {
+    const W = 9 + Math.floor(rng() * 3), H = 5 + Math.floor(rng() * 2), g = blank(W, H), dx = W - 3 - Math.floor(rng() * 2);
+    divider(rng, g, dx, 'A');
+    put(g, cellIn(rng, g, dx + 1, W - 2, 1, H - 2), 'X');
+    scatter(rng, g, 2 + Math.floor(rng() * 4), 1, dx - 1);
+    put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'a');
+    put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'P');
+    const kinds = rng() < 0.5 ? ['T', 'T'] : ['T', 'F'];
+    kinds.forEach((k) => put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), k));
+    const together = rng() < 0.5;
+    return { map: g, mode: together ? 'together' : 'through', required: together ? [1] : [], needs: [...new Set(kinds)] };
+  },
+  // World 8, Heavy Rhythm: Trace plus crates, two doors in a row
+  8: (rng) => {
+    const W = 10 + Math.floor(rng() * 3), H = 6 + Math.floor(rng() * 2), g = blank(W, H);
+    const d1 = 4 + Math.floor(rng() * 2), d2 = W - 3;
+    divider(rng, g, d1, 'A'); divider(rng, g, d2, 'B');
+    put(g, cellIn(rng, g, d2 + 1, W - 2, 1, H - 2), 'X');
+    scatter(rng, g, 1 + Math.floor(rng() * 3), 1, d1 - 1); scatter(rng, g, 1 + Math.floor(rng() * 3), d1 + 1, d2 - 1);
+    // plate a (first door) must be reachable before any door opens; plate b may sit behind door A
+    put(g, cellIn(rng, g, 1, d1 - 1, 1, H - 2), 'a');
+    put(g, rng() < 0.5 ? cellIn(rng, g, 1, d1 - 1, 1, H - 2) : cellIn(rng, g, d1 + 1, d2 - 1, 1, H - 2), 'b');
+    put(g, cellIn(rng, g, 2, d1 - 2, 2, H - 3), 'o');
+    put(g, cellIn(rng, g, 1, d1 - 1, 1, H - 2), 'P');
+    put(g, cellIn(rng, g, 1, d1 - 1, 1, H - 2), 'T');
+    if (rng() < 0.4) put(g, cellIn(rng, g, d1 + 2, d2 - 1, 2, H - 3), 'o');
+    return { map: g, mode: 'through', required: [], needs: ['T', 'crate'] };
+  },
+  // World 9, Quicksilver: Flicker hops into sealed pockets, coins for Favour, tight move limits
+  9: (rng) => {
+    const W = 9 + Math.floor(rng() * 3), H = 6, g = blank(W, H), dx = W - 3;
+    divider(rng, g, dx, 'A');
+    put(g, cellIn(rng, g, dx + 1, W - 2, 1, H - 2), 'X');
+    // a sealed pocket holding the plate: only a hop gets in
+    const px = 2 + Math.floor(rng() * (dx - 4)), py = 1 + Math.floor(rng() * 2);
+    for (let y = py - 1; y <= py + 1; y++) for (let x = px - 1; x <= px + 1; x++) if (g[y] && g[y][x] !== undefined && y > 0 && y < H - 1 && x > 0) g[y][x] = '#';
+    g[py][px] = 'a';
+    scatter(rng, g, Math.floor(rng() * 3), 1, dx - 1);
+    put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'P');
+    put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'F');
+    const coins = rng() < 0.5;
+    if (coins) { put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'c'); put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'c'); }
+    return { map: g, mode: 'through', required: [], needs: ['F', 'hop'], luck0: coins ? 60 : 0, coins };
+  },
+  // World 10, Workshop: Mason and Keeper hold plates for each other
+  10: (rng) => {
+    const W = 10 + Math.floor(rng() * 3), H = 6 + Math.floor(rng() * 2), g = blank(W, H);
+    const d1 = 4 + Math.floor(rng() * 3), d2 = W - 3, both = rng() < 0.6;
+    divider(rng, g, d2, 'A'); if (both) divider(rng, g, d1, 'B');
+    put(g, cellIn(rng, g, d2 + 1, W - 2, 1, H - 2), 'X');
+    const left = both ? d1 - 1 : d2 - 1;
+    scatter(rng, g, 1 + Math.floor(rng() * 3), 1, left);
+    put(g, cellIn(rng, g, 1, left, 1, H - 2), 'a');
+    if (both) put(g, cellIn(rng, g, d1 + 1, d2 - 1, 1, H - 2), 'b');
+    put(g, cellIn(rng, g, 1, left, 1, H - 2), 'P');
+    const kinds = both ? ['M', 'K'] : [rng() < 0.5 ? 'M' : 'K'];
+    kinds.forEach((k) => put(g, cellIn(rng, g, 1, left, 1, H - 2), k));
+    return { map: g, mode: 'through', required: [], needs: kinds };
+  },
+  // World 11, Storm Front: the Blocker interferes while echoes and crates hold the doors
+  11: (rng) => {
+    const W = 10 + Math.floor(rng() * 3), H = 6 + Math.floor(rng() * 2), g = blank(W, H), dx = W - 3;
+    divider(rng, g, dx, 'A');
+    put(g, cellIn(rng, g, dx + 1, W - 2, 1, H - 2), 'X');
+    scatter(rng, g, 2 + Math.floor(rng() * 4), 1, dx - 1);
+    put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'a');
+    put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'P');
+    const k = ['T', 'F', 'M'][Math.floor(rng() * 3)];
+    put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), k);
+    put(g, cellIn(rng, g, 1, dx - 1, 1, H - 2), 'Z');
+    if (rng() < 0.35) put(g, cellIn(rng, g, 2, dx - 2, 2, H - 3), 'o');
+    return { map: g, mode: 'through', required: [], needs: [k], enemy: true };
+  },
+};
+
+function candidate(world, rng) {
+  let r;
+  try { r = RECIPES[world](rng); } catch (e) { return null; }
+  const def = { id: 0, name: 'gen', map: r.map.map((row) => row.join('')), mode: r.mode, required: r.required, needs: r.needs };
+  if (r.luck0) def.luck0 = r.luck0;
+  if (r.coins) def.needs = def.needs.concat('favour');
+  // time-boxed: anything the solver cannot settle quickly is skipped (it would be too slow to verify)
+  const s = solve(def, 400000, 6000);
+  if (s.result !== 'win' || s.moves < 8) return null;
+  for (const n of def.needs) if (solve(ABLATE[n](def), 400000, 6000).result !== 'stuck') return null;
+  if (r.enemy) { const free = solve(Object.assign({}, def, { map: def.map.map((row) => row.replace('Z', '.')) }), 400000, 6000); if (free.result !== 'win' || free.moves >= s.moves) return null; }
+  const label = (a) => (a.k === 'move' ? a.d[0] : a.k === 'favour' ? 'F!' : 'H(' + a.x + ',' + a.y + ')');
+  def.par = s.moves; def.states = s.states; def.path = s.path.map(label).join('');
+  return def;
+}
+
+if (require.main === module) {
+  const args = process.argv.slice(2);
+  if (args[0] === '--apply') apply();
+  else {
+    const world = +args[0], tries = +(args[1] || 400), seed = +(args[2] || world * 7919), out = path.join(GEN, 'w' + world + (args[3] ? '-' + args[3] : '') + '.json');
+    const rng = rngOf(seed), found = [], seen = new Set();
+    if (!fs.existsSync(GEN)) fs.mkdirSync(GEN);
+    for (let i = 0; i < tries; i++) {
+      const d = candidate(world, rng);
+      if (!d || seen.has(d.map.join('/'))) continue;
+      seen.add(d.map.join('/')); found.push(d);
+      console.log('w' + world, 'found', found.length, 'par', d.par, 'states', d.states);
+      fs.writeFileSync(out, JSON.stringify(found, null, 1));
+    }
+  }
+}
+
+/* ---------- --apply: choose 10 per world and append them to js/levels.js ---------- */
+const WORLD_META = {
+  7: { name: 'Echo Chamber', blurb: 'Two echoes, one set of moves.', color: '#4fe3ff', lesson: 'Two echoes read the same moves', names: ['Double Take', 'Mirror Walk', 'Two Minds', 'Shared Tape', 'Side by Side', 'Split Step', 'Out of Sync', 'Pair Bond', 'Echo Duet', 'The Chamber'] },
+  8: { name: 'Heavy Rhythm', blurb: 'Crates, plates and two doors in a row.', color: '#ff9a5e', lesson: 'Crate and echo, one door each', names: ['Heavy Lifting', 'Two Locks', 'Push and Pull', 'Freight', 'Stack Up', 'Dead Weight', 'Counterweight', 'Lock Step', 'Cargo', 'The Vault'] },
+  9: { name: 'Quicksilver', blurb: 'Flicker hops into sealed rooms.', color: '#c49bff', lesson: 'Hop into rooms you cannot walk into', names: ['Leap of Faith', 'Sealed Room', 'Over the Wall', 'Blink', 'Quick Drop', 'Short Fuse', 'Air Mail', 'Jump Cut', 'Skylight', 'Quicksilver'] },
+  10: { name: 'Workshop', blurb: 'Mason and Keeper hold the doors.', color: '#6dffb3', lesson: 'Builders and helpers hold plates', names: ['Blueprint', 'Scaffold', 'Hired Help', 'Bricklayer', 'Day Shift', 'Toolbox', 'Foundations', 'Overtime', 'Assembly', 'The Workshop'] },
+  11: { name: 'Storm Front', blurb: 'Everything at once, with the Blocker watching.', color: '#ff5c8a', lesson: 'Plan around the Blocker', names: ['Static', 'Downpour', 'Crosswind', 'Lightning Rod', 'Pressure Drop', 'Eye of the Storm', 'Thunderhead', 'Gale Warning', 'Squall Line', 'Storm Front'] },
+};
+const ARROW = { U: '↑', R: '→', D: '↓', L: '←' };
+function planText(d) {
+  const moves = d.solution.replace(/H\d+,\d+;/g, 'H').split('');
+  const parts = [];
+  const echoes = AM.loadLevel(d).state.echoes;
+  const seenType = new Set();
+  for (const e of echoes) {
+    if (seenType.has(e.type) || e.type === 'keeper') continue; seenType.add(e.type);
+    const heads = []; let n = 0;
+    for (const m of moves) { if (!ARROW[m]) continue; if (n % e.B === 0) heads.push(ARROW[m]); n++; }
+    const nm = { trace: 'Trace', flicker: 'Flicker', mason: 'Mason' }[e.type];
+    parts.push('In the shortest solution, ' + nm + ' gets ' + heads.slice(0, 8).join(' ') + (heads.length > 8 ? ' …' : '') + ' as the first moves of its groups of ' + e.B + '.');
+  }
+  if (d.solution.includes('H')) parts.push('Use the hop to put Flicker on the sealed plate, then hurry: it jumps back after 4 moves.');
+  if (d.solution.includes('F')) parts.push('Collect the coins and use Favour to make Flicker fast enough.');
+  if (d.map.join('').includes('K')) parts.push('Keeper\'s helper needs a few moves to walk to the plate; be at the door when it arrives.');
+  if (d.map.join('').includes('Z')) parts.push('Watch the red target: the Blocker can drop a block on the plate or in your path.');
+  return 'Shortest solution: ' + d.par + ' moves. ' + parts.join(' ');
+}
+function introText(d, w) {
+  const s = d.map.join(''), bits = [];
+  if ((s.match(/T/g) || []).length > 1) bits.push('Two Traces read the same moves; only walls make them end up in different places.');
+  else if (s.includes('T') && s.includes('F')) bits.push('Trace copies 1 move in 4 and Flicker 1 in 2, from the same moves.');
+  if (s.includes('o')) bits.push('A crate can hold one plate for good; an echo has to hold the other.');
+  if (s.includes('F') && d.needs.includes('hop')) bits.push('The plate is sealed in: only a Flicker hop can reach it.');
+  if (s.includes('M')) bits.push('Mason builds a block where the first move of a group points; a block on a plate holds its door.');
+  if (s.includes('K')) bits.push('Keeper sends a helper to the nearest free plate every 3 moves.');
+  if (s.includes('Z')) bits.push('The Blocker marks a tile, counts down and drops a block there.');
+  if (d.mode === 'together') bits.push('Echo 1 must reach the portal with you.');
+  return bits.join(' ') || WORLD_META[w].blurb;
+}
+function apply() {
+  const file = path.join(__dirname, '../js/levels.js');
+  let src = fs.readFileSync(file, 'utf8');
+  const LEVELS = require(file), q = (s) => "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+  let id = LEVELS.length, worlds = '', levels = '';
+  for (const w of Object.keys(WORLD_META).map(Number)) {
+    const files = fs.existsSync(GEN) ? fs.readdirSync(GEN).filter((n) => new RegExp('^w' + w + '(-.*)?\\.json$').test(n)) : [];
+    if (!files.length) continue;
+    const uniq = new Map();
+    files.forEach((n) => JSON.parse(fs.readFileSync(path.join(GEN, n))).forEach((d) => uniq.set(d.map.join('/'), d)));
+    const pool = [...uniq.values()].sort((a, b) => a.par * 1000 + a.states / 1000 - (b.par * 1000 + b.states / 1000));
+    if (pool.length < 10) throw new Error('world ' + w + ' has only ' + pool.length + ' candidates');
+    // spread across the difficulty range, hardest last (the boss)
+    const pick = Array.from({ length: 10 }, (_, i) => pool[Math.round((i * (pool.length - 1)) / 9)]);
+    const M = WORLD_META[w];
+    worlds += `    { id: ${w}, name: ${q(M.name)}, blurb: ${q(M.blurb)}, color: ${q(M.color)} },\n`;
+    pick.forEach((d, i) => {
+      id++;
+      const enc = d.path.replace(/F!/g, 'F').replace(/H\((\d+),(\d+)\)/g, 'H$1,$2;');
+      const def = Object.assign({}, d, { id, solution: enc });
+      const f2 = [`id: ${id}`, `world: ${w}`, `name: ${q(M.names[i])}`, `par: ${d.par}`, `mode: ${q(d.mode)}`];
+      if (d.required && d.required.length) f2.push(`required: [${d.required.join(', ')}]`);
+      if (d.luck0) f2.push(`luck0: ${d.luck0}`);
+      if (i >= 7 && w >= 9) f2.push(`maxMoves: ${d.par + 3}`);
+      f2.push(`needs: [${d.needs.map(q).join(', ')}]`);
+      levels += `    {\n      ${f2.join(', ')},\n      lesson: ${q(M.lesson)},\n      intro: ${q(introText(def, w))},\n      plan: ${q(planText(def))},\n      solution: ${q(enc)},\n      map: [\n${d.map.map((r) => '        ' + q(r) + ',').join('\n')}\n      ],\n    },\n`;
+    });
+  }
+  src = src.replace(/(\n  \];\n  const LEVELS = \[)/, '\n' + worlds.replace(/\n$/, '') + '$1');
+  src = src.replace(/\n  \];\n  LEVELS\.WORLDS = WORLDS;/, '\n' + levels.replace(/\n$/, '') + '\n  ];\n  LEVELS.WORLDS = WORLDS;');
+  fs.writeFileSync(file, src);
+  console.log('levels now', id);
+}
+module.exports = { RECIPES, candidate };
