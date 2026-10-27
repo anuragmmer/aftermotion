@@ -179,6 +179,32 @@ t('Star chests: one per 10 stars, increasing value, cannot double-open', () => {
   assert.strictEqual(P.openChest(prog), 50); assert.strictEqual(P.openChest(prog), 75); assert.strictEqual(P.openChest(prog), 0);
   assert.strictEqual(P.nextChestAt(prog), 30);
 });
+const Shop = require('../js/shop.js');
+t('Shop: defaults owned, buying cosmetics and boosts, equipping, milestones', () => {
+  const prog = Shop.init(P.defaults());
+  assert.strictEqual(prog.equip.face, 'letter');
+  assert.ok(Shop.owns(prog, LEVELS, Shop.byId('cyan')));
+  assert.ok(!Shop.buy(prog, LEVELS, 'robot').ok, 'too poor');
+  prog.coins = 1000;
+  assert.ok(Shop.buy(prog, LEVELS, 'robot').ok); assert.strictEqual(prog.coins, 100);
+  assert.ok(!Shop.buy(prog, LEVELS, 'robot').ok, 'no double buy');
+  assert.ok(Shop.equip(prog, LEVELS, 'robot')); assert.strictEqual(prog.equip.face, 'robot');
+  assert.ok(!Shop.equip(prog, LEVELS, 'smile'), 'milestone not reached yet');
+  assert.ok(Shop.buy(prog, LEVELS, 'hint3').ok); assert.strictEqual(prog.inv.hint, 3);
+  assert.ok(Shop.useBoost(prog, 'hint')); assert.strictEqual(prog.inv.hint, 2);
+  LEVELS.filter((l) => l.world === 1).forEach((l) => P.applyClear(prog, l, { moves: l.par, collected: 0 }, 0));
+  const fresh = Shop.newUnlocks(prog, LEVELS).map((i) => i.id);
+  assert.deepStrictEqual(fresh, ['smile']); assert.deepStrictEqual(Shop.newUnlocks(prog, LEVELS), [], 'reported once');
+  assert.ok(Shop.equip(prog, LEVELS, 'smile'));
+  assert.ok(Shop.nextGoal(prog, LEVELS).item.price);
+});
+t('Boosted runs cap at 2 stars; skip tickets unlock the next level without stars', () => {
+  const prog = P.defaults();
+  assert.strictEqual(P.applyClear(prog, LEVELS[0], { moves: LEVELS[0].par, collected: 0, assisted: true }, 0).stars, 2);
+  P.skipLevel(prog, LEVELS[1]);
+  assert.ok(P.isUnlocked(prog, LEVELS, 2)); assert.strictEqual(P.nextLevelIndex(prog, LEVELS), 2);
+  assert.strictEqual(P.record(prog, LEVELS[1].id).stars, 0);
+});
 function replay(def) {
   let { level: L, state: S } = AM.loadLevel(def);
   for (const tok of def.solution.match(/H\d+,\d+;|[URDLF]/g)) {

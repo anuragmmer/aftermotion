@@ -2,7 +2,7 @@
  * Rules live in engine.js, rewards in progress.js; this file only presents state and sends commands. */
 (function () {
   'use strict';
-  const AM = window.AM, LEVELS = window.AMLevels, P = window.AMProgress, SFX = window.AMAudio;
+  const AM = window.AM, LEVELS = window.AMLevels, P = window.AMProgress, SFX = window.AMAudio, Shop = window.AMShop;
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
   const ROT = { UP: 0, RIGHT: 90, DOWN: 180, LEFT: 270 };
@@ -24,7 +24,7 @@
     return l ? l.id : null;
   };
 
-  let prog = P.load();
+  let prog = Shop.init(P.load());
   let screen = 'title', G = null, mapSel = null, echoSel = 'trace';
   const board = $('#board'), frame = $('#frame');
   let tileEls = [], actorsEl = null, actorEls = new Map(), checkToken = 0;
@@ -34,7 +34,10 @@
   const buzz = (ms) => { try { if (!reduced() && navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* unsupported */ } };
   function persist() { P.save(prog); }
   function coins() { $$('.coinCount').forEach((el) => (el.textContent = prog.coins.toLocaleString('en-US'))); }
-  function applySettings() { SFX.setEnabled(!!prog.sound); document.body.classList.toggle('reduce', !!prog.reduceMotion); }
+  function applySettings() {
+    SFX.setEnabled(!!prog.sound); document.body.classList.toggle('reduce', !!prog.reduceMotion);
+    Shop.SLOTS.forEach((k) => (document.body.dataset[k] = prog.equip[k]));
+  }
 
   /* ================= screens ================= */
   function setTheme(theme, boss) {
@@ -52,6 +55,7 @@
     if (name === 'title') renderTitle();
     if (name === 'map') renderMap();
     if (name === 'echoes') renderEchoes();
+    if (name === 'shop') renderShop();
     window.scrollTo(0, 0);
   }
 
@@ -72,6 +76,9 @@
     $('#tChest').classList.toggle('ready', ch > 0);
     $('#tChestTitle').textContent = ch > 0 ? (ch > 1 ? ch + ' chests ready!' : 'Chest ready!') : 'Star chest';
     $('#tChestSub').textContent = ch > 0 ? 'Tap to open' : stars + ' / ' + nextAt + '★ for the next chest';
+    const goal = Shop.nextGoal(prog, LEVELS);
+    $('#tShopSub').textContent = goal ? 'Next: ' + goal.text : 'Everything unlocked!';
+    $('#tShopNew').hidden = !(goal && goal.ready);
     $('#tChestFill').style.width = ch > 0 ? '100%' : Math.round(((stars - (nextAt - P.CHEST_STARS)) / P.CHEST_STARS) * 100) + '%';
   }
   function playDaily() {
@@ -207,7 +214,7 @@
   function startLevel(i, opts) {
     const def = LEVELS[i], r = AM.loadLevel(def);
     const daily = !!(opts && opts.daily) || !!(opts && opts.restart && G && G.daily);
-    G = { daily, react: def.id % 5 === 0, idx: i, def, L: r.level, S: r.state, undo: [], log: [], hop: false, oracle: G ? G.oracle : false, usedHint: false, hint: null, trail: [], startCoins: r.state.coins.length };
+    G = { daily, react: def.id % 5 === 0, idx: i, def, L: r.level, S: r.state, undo: [], log: [], hop: false, oracle: G ? G.oracle : false, usedHint: false, hint: null, trail: [], startCoins: r.state.coins.length, movesUsed: false, luckUsed: false };
     r.state.echoes.forEach((e) => (prog.seen[e.type] = true));
     if (r.state.enemy) prog.seen.blocker = true;
     persist();
@@ -315,7 +322,7 @@
         let lbl = '';
         if (L.plates[k]) { cls += ' plate'; lbl = L.plates[k].toLowerCase(); el.style.setProperty('--pc', PLATE_COLOR[L.plates[k]]); }
         if (L.doors[k]) { cls = 'tile floor door'; lbl = L.doors[k]; el.style.setProperty('--pc', PLATE_COLOR[L.doors[k]]); }
-        if (AM.isExit(L, x, y)) { cls += ' exit'; if (L.exitLock.length) { cls += ' powered'; lbl = L.exitLock[0].toLowerCase(); el.style.setProperty('--pc', PLATE_COLOR[L.exitLock[0]]); } }
+        if (AM.isExit(L, x, y)) { cls += ' exit p-' + prog.equip.portal; if (L.exitLock.length) { cls += ' powered'; lbl = L.exitLock[0].toLowerCase(); el.style.setProperty('--pc', PLATE_COLOR[L.exitLock[0]]); } }
         el.className = cls;
         if (lbl) el.innerHTML = '<span class="lbl">' + lbl + '</span>';
         board.appendChild(el); row.push(el);
@@ -401,7 +408,7 @@
       if (en.state === 'TELEGRAPH' && en.target) actor('tele', 'tele', '<div class="ret"></div><b></b>', en.target.x, en.target.y, seen).querySelector('b').textContent = en.t;
     }
     for (const h of S.helpers) actor('helper' + h.id, 'helper', '<div class="dia"></div><b></b>', h.x, h.y, seen).querySelector('b').textContent = h.state === 'PERFORM' ? h.hold : h.life;
-    G.trail.forEach((p, i) => { const el = actor('trail' + i, 'trail', '<div class="dot"></div>', p.x, p.y, seen); el.style.opacity = 0.32 - i * 0.1; el.firstChild.style.transform = 'scale(' + (1 - i * 0.22) + ')'; });
+    G.trail.forEach((p, i) => { const el = actor('trail' + i, 'trail', '<div class="dot t-' + prog.equip.trail + '"></div>', p.x, p.y, seen); el.style.opacity = 0.32 - i * 0.1; el.firstChild.style.transform = 'scale(' + (1 - i * 0.22) + ')'; });
     for (const e of S.echoes) {
       if (e.hopping && e.hop.origin) actor('ghost' + e.id, 'echo ghost-origin ' + e.type, '<div class="shape"><span>' + glyphOf(e) + '</span></div>', e.hop.origin.x, e.hop.origin.y, seen);
       const el = actor('echo' + e.id, 'echo ' + e.type + (e.required ? ' required' : '') + (e.state === 'FAVOURED' ? ' fav' : '') + (e.state === 'COOLDOWN' ? ' cool' : ''),
@@ -413,6 +420,8 @@
       Array.from(pips.children).forEach((p, i) => p.classList.toggle('on', i < e.counter));
       const head = el.querySelector('.head');
       head.style.display = e.batch.length && e.type !== 'keeper' ? '' : 'none';
+      const look = e.batch.length ? AM.DELTA[e.batch[0]] : [0, 0];
+      el.style.setProperty('--lx', look[0] * 18 + '%'); el.style.setProperty('--ly', look[1] * 14 + '%');
       if (e.batch.length) head.style.transform = 'rotate(' + ROT[e.batch[0]] + 'deg)';
     }
     for (const e of S.echoes) {
@@ -426,7 +435,7 @@
       el.querySelector('b').textContent = e.activeB - e.counter;
       el.querySelector('i').textContent = blocked ? '✕' : '';
     }
-    actor('player', 'playerA', '<div class="orb-bob"><div class="orb"></div></div>', S.player.x, S.player.y, seen);
+    actor('player', 'playerA', '<div class="orb-bob"><div class="orb o-' + prog.equip.orb + '"></div></div>', S.player.x, S.player.y, seen);
     // hint marker
     if (G.hint) {
       const a = G.hint;
@@ -503,7 +512,15 @@
     $('#btnOracle').classList.toggle('on', G.oracle);
     $('#btnOracle').setAttribute('aria-pressed', G.oracle);
     const price = P.hintPrice(prog, today());
-    $('#hintLabel').textContent = price ? 'Hint · ' + price : 'Hint · free';
+    $('#hintLabel').textContent = !price ? 'Hint · free' : prog.inv.hint ? 'Hint · ' + prog.inv.hint + ' left' : 'Hint · ' + price;
+    // boosts
+    const coinsHere = G.startCoins > 0 || L.luck0 > 0;
+    $('#btnMoves').hidden = !L.maxMoves || !prog.inv.moves || G.movesUsed || S.status === 'won';
+    $('#movesLabel').textContent = '+3 moves ×' + prog.inv.moves;
+    $('#btnLuck').hidden = !coinsHere || !prog.inv.luck || G.luckUsed || S.luck >= 100 || S.status !== 'play';
+    $('#luckLabel').textContent = 'Lucky charm ×' + prog.inv.luck;
+    $('#btnSkip').hidden = !prog.inv.skip || cleared(G.def) || G.daily || G.idx === LEVELS.length - 1;
+    $('#skipLabel').textContent = 'Skip ×' + prog.inv.skip;
     // oracle
     $('#oracleCard').hidden = !G.oracle || S.status !== 'play';
     if (G.oracle && S.status === 'play') {
@@ -540,7 +557,10 @@
   // Echoes of the same kind are numbered ("Echo 1", "Echo 2") so twins can be told apart.
   const dupNo = (e) => { const same = G.S.echoes.filter((q) => q.type === e.type); return same.length > 1 ? same.findIndex((q) => q.id === e.id) + 1 : 0; };
   const nm = (e) => ECHO_INFO[e.type].name + (dupNo(e) ? ' ' + dupNo(e) : '');
-  const glyphOf = (e) => ECHO_INFO[e.type].glyph + (dupNo(e) ? '<sub>' + dupNo(e) + '</sub>' : '');
+  // Echo faces: 'letter' shows the echo's letter; any other face hides it and draws eyes + mouth.
+  const faceHTML = (id) => (id === 'letter' ? '' : '<i class="face f-' + id + '"><b></b><b></b><u></u></i>');
+  const letterHTML = (t, id, n) => '<em class="g' + (id === 'letter' ? '' : ' hide') + '">' + ECHO_INFO[t].glyph + (n && id === 'letter' ? '<sub>' + n + '</sub>' : '') + '</em>';
+  const glyphOf = (e) => letterHTML(e.type, prog.equip.face, dupNo(e)) + faceHTML(prog.equip.face) + (dupNo(e) && prog.equip.face !== 'letter' ? '<sup class="num">' + dupNo(e) + '</sup>' : '');
   const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
   const walker = (e) => e.type === 'trace' || e.type === 'flicker';
   function obstacle(L, S, x, y) {
@@ -733,16 +753,86 @@
   function hint() {
     if (busy() || G.S.status !== 'play') return;
     const price = P.hintPrice(prog, today());
-    if (price > prog.coins) { toast('Hints cost ' + price + ' coins after the free daily one.'); SFX.echoBlocked(); return; }
+    if (price && !prog.inv.hint && price > prog.coins) { toast('Hints cost ' + price + ' coins after the free daily one, or buy a Hint pack in the Shop.'); SFX.echoBlocked(); return; }
     const r = AM.canWin(G.L, G.S, { ms: 900, cap: 300000 });
     if (r.result === 'unknown') { toast('Too many possibilities to hint from here. Try a few moves first.'); return; }
     if (r.result === 'stuck') { toast('No solution from this position. Undo first.'); return; }
-    const c = P.chargeHint(prog, today()); persist();
+    const c = price && prog.inv.hint ? (Shop.useBoost(prog, 'hint'), { ok: true, token: true, cost: 0 }) : P.chargeHint(prog, today()); persist();
     G.usedHint = true; G.hint = r.path[0];
     const a = G.hint;
-    toast((c.free ? 'Free daily hint: ' : 'Hint (−' + c.cost + ' coins): ') + (a.k === 'move' ? 'move ' + WORD[a.d] + ' (green arrow on the board).' : a.k === 'favour' ? 'press Favour now.' : 'hop Flicker onto the green square.'));
+    toast((c.free ? 'Free daily hint: ' : c.token ? 'Hint (' + prog.inv.hint + ' tokens left): ' : 'Hint (−' + c.cost + ' coins): ') + (a.k === 'move' ? 'move ' + WORD[a.d] + ' (green arrow on the board).' : a.k === 'favour' ? 'press Favour now.' : 'hop Flicker onto the green square.'));
     if (a.k === 'favour') anim($('#btnFavour'), [{ transform: 'scale(1.15)' }, { transform: 'scale(1)' }], { duration: 400, iterations: 3 });
     SFX.coin(); render();
+  }
+
+  /* ---------- boosts ---------- */
+  function boostMoves() {
+    if (busy() || G.movesUsed || !G.L.maxMoves || !Shop.useBoost(prog, 'moves')) return;
+    persist(); G.movesUsed = true;
+    G.L = Object.assign({}, G.L, { maxMoves: G.L.maxMoves + 3 });
+    if (G.S.status === 'lost') { G.S = Object.assign(AM.clone(G.S), { status: 'play', reason: '' }); closeModal(); }
+    say([{ h: '+3 moves added. This run can earn at most 2 stars.', c: 'gold' }]);
+    SFX.favour(); render(); checkStuck();
+  }
+  function boostLuck() {
+    if (busy() || G.luckUsed || !Shop.useBoost(prog, 'luck')) return;
+    persist(); G.luckUsed = true;
+    G.S = AM.clone(G.S); G.S.luck = Math.min(100, G.S.luck + 40);
+    say([{ h: 'Lucky charm: Luck is now ' + G.S.luck + '/100.' + (G.S.luck >= 100 ? ' Press Favour (F)!' : ''), c: 'gold' }]);
+    SFX.coin(); render();
+  }
+  function boostSkip() {
+    if (busy()) return;
+    openModal('<h2>Skip this level?</h2><p>Uses 1 Skip ticket (' + prog.inv.skip + ' left). The next level unlocks now; come back any time to earn stars here.</p>' +
+      '<div class="row"><button class="btn" id="skNo">Keep trying</button><button class="btn gold big" id="skYes"><svg><use href="#i-skip"/></svg>Skip</button></div>', () => {
+      on('skNo', closeModal);
+      on('skYes', () => { if (!Shop.useBoost(prog, 'skip')) return; P.skipLevel(prog, G.def); persist(); toast('Skipped. Level ' + LEVELS[G.idx + 1].id + ' unlocked.'); startLevel(G.idx + 1); });
+    });
+  }
+
+  /* ---------- shop ---------- */
+  let shopTab = 'face';
+  const TAB_NAMES = { face: 'Echo faces', orb: 'Orbs', trail: 'Trails', portal: 'Portals', boost: 'Boosts' };
+  function previewHTML(item) {
+    if (item.slot === 'face') return '<div class="preview">' + ['trace', 'flicker', 'mason'].map((t) => '<div class="glyph ' + t + '" style="--g:46px;--ts:46px"><span>' + letterHTML(t, item.id) + faceHTML(item.id) + '</span></div>').join('') + '</div>';
+    if (item.slot === 'orb') return '<div class="preview"><div class="pv-actor"><div class="orb o-' + item.id + '"></div></div></div>';
+    if (item.slot === 'trail') return '<div class="preview"><div class="pv-trail">' + [0.3, 0.55, 0.8].map((o) => '<span class="trail" style="position:relative;width:26px;height:26px;opacity:' + o + '"><span class="dot t-' + item.id + '" style="position:absolute;inset:4px;border-radius:50%"></span></span>').join('') + '<div class="pv-actor" style="width:56px;height:56px"><div class="orb o-' + prog.equip.orb + '"></div></div></div></div>';
+    if (item.slot === 'portal') return '<div class="preview"><div class="tile floor exit p-' + item.id + '" style="--ts:64px"></div></div>';
+    const icon = { hint: 'i-bulb', moves: 'i-plus', luck: 'i-bolt', skip: 'i-skip' }[item.boost];
+    return '<div class="preview"><svg style="width:46px;height:46px;color:var(--gold)"><use href="#' + icon + '"/></svg></div>';
+  }
+  function renderShop() {
+    const goal = Shop.nextGoal(prog, LEVELS);
+    $('#shopGoal').innerHTML = goal
+      ? '<span class="dc-ico"><svg><use href="#i-star"/></svg></span><div class="gb-txt"><span class="coach-tag">NEXT UNLOCK</span><b>' + esc(goal.text) + '</b>' +
+        (goal.item.price ? '<div class="bar2"><i style="width:' + Math.min(100, Math.round((prog.coins / goal.item.price) * 100)) + '%"></i></div>' : '') + '</div>'
+      : '<div class="gb-txt"><b>You own everything. Legend!</b></div>';
+    $('#shopTabs').innerHTML = Object.keys(TAB_NAMES).map((k) => '<button class="tab" role="tab" data-tab="' + k + '" aria-selected="' + (k === shopTab) + '">' + TAB_NAMES[k] + '</button>').join('');
+    $$('#shopTabs .tab').forEach((b) => (b.onclick = () => { shopTab = b.dataset.tab; SFX.click(); renderShop(); }));
+    $('#shopGrid').innerHTML = Shop.CATALOG.filter((c) => c.slot === shopTab).map((it) => {
+      const owned = it.slot !== 'boost' && Shop.owns(prog, LEVELS, it), on = owned && prog.equip[it.slot] === it.id;
+      let btn;
+      if (it.slot === 'boost') btn = '<button class="btn gold" data-buy="' + it.id + '"' + (prog.coins < it.price ? ' disabled' : '') + '><i class="coin-ico" style="width:18px;height:18px"></i>' + it.price + '</button>';
+      else if (on) btn = '<button class="btn on" disabled>Equipped</button>';
+      else if (owned) btn = '<button class="btn" data-equip="' + it.id + '">Equip</button>';
+      else if (it.price) btn = '<button class="btn gold" data-buy="' + it.id + '"' + (prog.coins < it.price ? ' disabled' : '') + '><i class="coin-ico" style="width:18px;height:18px"></i>' + it.price + '</button>';
+      else btn = '<button class="btn" disabled><svg><use href="#i-lock"/></svg>Locked</button>';
+      const tag = it.milestone ? (owned ? 'EARNED REWARD' : 'REWARD: ' + Shop.milestoneText(it).toUpperCase()) : it.default ? 'STARTER' : it.slot === 'boost' ? 'BOOST' : 'SHOP';
+      return '<div class="item' + (on ? ' equipped' : '') + (!owned && it.slot !== 'boost' && !it.price ? ' locked' : '') + '">' +
+        (it.slot === 'boost' ? '<span class="owned-n">×' + prog.inv[it.boost] + '</span>' : '') + previewHTML(it) +
+        '<span class="tagline">' + esc(tag) + '</span><h4>' + esc(it.name) + '</h4><p>' + esc(it.desc) + '</p>' + btn + '</div>';
+    }).join('');
+    // previews show the item itself, not the equipped one
+    $$('#shopGrid [data-buy]').forEach((b) => (b.onclick = () => {
+      const it = Shop.byId(b.dataset.buy), r = Shop.buy(prog, LEVELS, it.id);
+      if (!r.ok) { toast(r.reason); SFX.echoBlocked(); return; }
+      if (it.slot !== 'boost') Shop.equip(prog, LEVELS, it.id);
+      persist(); applySettings(); SFX.win(); buzz(30); confetti();
+      toast(it.slot === 'boost' ? it.name + ' added. You have ' + prog.inv[it.boost] + '.' : it.name + ' unlocked and equipped!');
+      coins(); renderShop();
+    }));
+    $$('#shopGrid [data-equip]').forEach((b) => (b.onclick = () => { Shop.equip(prog, LEVELS, b.dataset.equip); persist(); applySettings(); SFX.click(); renderShop(); }));
+    coins();
   }
 
   /* ---------- stuck detection (exhaustive search via the engine) ---------- */
@@ -810,7 +900,8 @@
      every move and the frame beats when an echo acts. */
   function floorFx(next, fired) {
     if (reduced()) return;
-    const px = next.player.x, py = next.player.y, glow = getComputedStyle(document.body).getPropertyValue('--glow').trim() || '#4fe3ff';
+    const px = next.player.x, py = next.player.y, trail = prog.equip.trail;
+    const glow = trail === 'rainbow' ? 'hsl(' + ((next.moves * 47) % 360) + ',90%,65%)' : trail === 'embers' ? '#ff7a3d' : trail === 'sparks' ? '#ffffff' : getComputedStyle(document.body).getPropertyValue('--glow').trim() || '#4fe3ff';
     const lightTile = (x, y, delay, strength, dur) => {
       const el = tileEls[y] && tileEls[y][x]; if (!el || el.classList.contains('wall')) return;
       const l = document.createElement('i'); l.className = 'lit'; l.style.background = glow; l.style.opacity = 0;
@@ -886,7 +977,9 @@
       const rec = P.record(prog, L.id); rec.best = rec.best === null ? S.moves : Math.min(rec.best, S.moves); rec.stars = Math.max(rec.stars, stars);
       receipt = { lines: d.lines.length ? d.lines : [{ label: 'Already claimed today', value: 0, tone: 'dim' }], total: d.total, stars, best: rec.best, first: false, newBest: false,
         next: 'Daily streak: ' + (d.streak || P.dailyStatus(prog, today()).streak) + ' day(s). A new Daily Echo appears tomorrow; keep the streak alive for bigger bonuses.' };
-    } else receipt = P.applyClear(prog, L, { moves: S.moves, collected, usedHint: G.usedHint }, Date.now());
+    } else receipt = P.applyClear(prog, L, { moves: S.moves, collected, usedHint: G.usedHint, assisted: G.movesUsed }, Date.now());
+    const unlocked = Shop.newUnlocks(prog, LEVELS), goal = Shop.nextGoal(prog, LEVELS);
+    persist();
     persist();
     const last = G.idx === LEVELS.length - 1;
     openModal(
@@ -897,6 +990,8 @@
       '<div class="receipt">' + receipt.lines.map((r, i) => '<div class="r ' + r.tone + '" style="animation-delay:' + (0.5 + i * 0.12) + 's"><span>' + esc(r.label) + '</span><span>+' + r.value + '</span></div>').join('') +
       '<hr><div class="total"><span class="disp" style="font-size:22px">Total</span><b><i class="coin-ico"></i><span id="countUp">+0</span></b></div></div>' +
       '<div class="note lesson"><svg><use href="#i-bulb"/></svg><span><b>You learned:</b> ' + esc(L.lesson || G.def.lesson) + '</span></div>' +
+      unlocked.map((it) => '<div class="unlock-card"><svg style="color:var(--mint)"><use href="#i-star"/></svg><span><b>New unlock:</b> ' + esc(it.name) + ' (' + esc(it.slot === 'face' ? 'echo face' : it.slot) + '). Equip it in the Shop.</span></div>').join('') +
+      (goal ? '<div class="note"><svg><use href="#i-bag"/></svg><span><b>Next unlock:</b> ' + esc(goal.text) + '</span></div>' : '') +
       '<div class="note"><svg><use href="#i-restart"/></svg><span>' + esc(receipt.next) + '</span></div>' +
       (last ? '<p>You finished every level. More worlds are on the way.</p>' : '') +
       '<div class="row"><button class="btn" id="vMap"><svg><use href="#i-map"/></svg>Map</button><button class="btn" id="vReplay"><svg><use href="#i-restart"/></svg>Replay</button>' +
@@ -936,8 +1031,10 @@
   function failed() {
     SFX.lose(); buzz([60, 40, 60]);
     openModal('<div class="kicker">LEVEL ' + G.L.id + '</div><h2 class="lose-title">OUT OF MOVES</h2><p>' + esc(G.S.reason) + ' Undo a few moves or try a new line.</p>' +
-      '<div class="row"><button class="btn" id="fMap"><svg><use href="#i-map"/></svg>Map</button><button class="btn" id="fUndo"><svg><use href="#i-undo"/></svg>Undo</button><button class="btn gold big" id="fRetry"><svg><use href="#i-restart"/></svg>Retry</button></div>',
-      () => { on('fMap', () => { mapSel = G.idx; mapWorld = G.def.world; show('map'); }); on('fUndo', () => { closeModal(); undo(); }); on('fRetry', restart); });
+      '<div class="row"><button class="btn" id="fMap"><svg><use href="#i-map"/></svg>Map</button><button class="btn" id="fUndo"><svg><use href="#i-undo"/></svg>Undo</button>' +
+      (prog.inv.moves && !G.movesUsed ? '<button class="btn boost" id="fMoves"><svg><use href="#i-plus"/></svg>+3 moves (×' + prog.inv.moves + ')</button>' : '') +
+      '<button class="btn gold big" id="fRetry"><svg><use href="#i-restart"/></svg>Retry</button></div>',
+      () => { on('fMoves', () => { closeModal(); boostMoves(); }); on('fMap', () => { mapSel = G.idx; mapWorld = G.def.world; show('map'); }); on('fUndo', () => { closeModal(); undo(); }); on('fRetry', restart); });
   }
   function pause() {
     openModal('<h2>Paused</h2><p>' + esc(G.def.name) + ' · ' + G.S.moves + ' moves so far</p>' +
@@ -1019,7 +1116,8 @@
   $('#mapPrev').onclick = () => switchWorld(-1); $('#mapNext').onclick = () => switchWorld(1);
   $('#stuckUndo').onclick = undo; $('#stuckRestart').onclick = restart;
   $('#tContinue').onclick = () => { SFX.click(); startLevel(P.nextLevelIndex(prog, LEVELS)); };
-  $('#tDaily').onclick = playDaily; $('#tChest').onclick = () => { SFX.click(); openChestModal(); };
+  $('#tDaily').onclick = playDaily;
+  $('#btnMoves').onclick = boostMoves; $('#btnLuck').onclick = boostLuck; $('#btnSkip').onclick = boostSkip; $('#tChest').onclick = () => { SFX.click(); openChestModal(); };
   $$('[data-go]').forEach((b) => (b.onclick = () => { SFX.click(); if (b.dataset.go === 'map') { mapSel = null; mapWorld = null; } show(b.dataset.go); }));
   $$('[data-open]').forEach((b) => (b.onclick = () => { SFX.click(); b.dataset.open === 'help' ? help() : settings(); }));
   $('#overlay').addEventListener('click', (e) => { if (e.target === $('#overlay') && G && G.S.status === 'play' && screen === 'game') closeModal(); });

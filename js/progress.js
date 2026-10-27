@@ -43,7 +43,7 @@
   function applyClear(prog, level, result, now) {
     const rec = record(prog, level.id);
     regen(rec, now);
-    const base = baseReward(level), stars = starsFor(result.moves, level.par);
+    const base = baseReward(level), stars = result.assisted ? Math.min(2, starsFor(result.moves, level.par)) : starsFor(result.moves, level.par);
     const mult = RULES.starMult[stars], lines = [];
     let total = 0;
     const add = (label, value, tone) => { lines.push({ label, value, tone: tone || '' }); total += value; };
@@ -82,14 +82,17 @@
     return 'Next replay pays ' + Math.round(Math.pow(RULES.replayDecay, rec.k + 1) * 1000) / 10 + '% (★★ or better). ' + (RULES.paidReplays - rec.k) + ' paid replays left.';
   }
 
-  const isUnlocked = (prog, levels, idx) => idx === 0 || !!(prog.levels[levels[idx - 1].id] && prog.levels[levels[idx - 1].id].clears);
+  const passed = (prog, l) => !!(prog.levels[l.id] && (prog.levels[l.id].clears || prog.levels[l.id].skipped));
+  const isUnlocked = (prog, levels, idx) => idx === 0 || passed(prog, levels[idx - 1]);
   const totalStars = (prog) => Object.values(prog.levels).reduce((s, r) => s + (r.stars || 0), 0);
   function nextLevelIndex(prog, levels) {
-    for (let i = 0; i < levels.length; i++) if (!(prog.levels[levels[i].id] && prog.levels[levels[i].id].clears)) return i;
+    for (let i = 0; i < levels.length; i++) if (!passed(prog, levels[i])) return i;
     return levels.length - 1;
   }
 
   /* Hints: one free per day, then coins. Returns {ok, free, cost}. */
+  /* Skip ticket: the next level unlocks; this one stays unstarred until really cleared. */
+  function skipLevel(prog, level) { record(prog, level.id).skipped = true; }
   function chargeHint(prog, today) {
     if (prog.freeHintDay !== today) { prog.freeHintDay = today; return { ok: true, free: true, cost: 0 }; }
     if (prog.coins < RULES.hintCost) return { ok: false, free: false, cost: RULES.hintCost };
@@ -129,6 +132,7 @@
     const bonus = DAILY.perStreak * Math.min(streak - 1, DAILY.maxBonusDays);
     if (bonus) lines.push({ label: 'Streak bonus (day ' + streak + ')', value: bonus, tone: 'good' });
     prog.daily = { last: day, streak };
+    prog.bestStreak = Math.max(prog.bestStreak || 0, streak);
     const total = base + bonus;
     prog.coins += total;
     return { total, streak, lines };
@@ -145,5 +149,5 @@
     return coins;
   }
 
-  return { DAILY, dayShift, dailyLevelIndex, dailyStatus, applyDaily, CHEST_STARS, chestsAvailable, nextChestAt, openChest, RULES, baseReward, starsFor, twoStarLimit, defaults, record, applyClear, nextReplayInfo, isUnlocked, totalStars, nextLevelIndex, chargeHint, hintPrice, load, save };
+  return { skipLevel, DAILY, dayShift, dailyLevelIndex, dailyStatus, applyDaily, CHEST_STARS, chestsAvailable, nextChestAt, openChest, RULES, baseReward, starsFor, twoStarLimit, defaults, record, applyClear, nextReplayInfo, isUnlocked, totalStars, nextLevelIndex, chargeHint, hintPrice, load, save };
 });

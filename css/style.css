@@ -457,3 +457,76 @@ body.won .board-frame::after{box-shadow:inset 0 0 0 4px var(--mint),inset 0 0 80
 .chest-big svg{width:70px;height:70px}
 @keyframes chestShake{0%,100%{transform:rotate(0) scale(1)}20%{transform:rotate(-10deg) scale(1.05)}40%{transform:rotate(10deg) scale(1.1)}60%{transform:rotate(-6deg)}80%{transform:rotate(4deg)}}
 @media (max-width:640px){.daily-row{grid-template-columns:1fr}}
+
+/* ---------- shop ---------- */
+#shop{display:flex;flex-direction:column}
+.shop-body{padding:0 24px 30px;display:flex;flex-direction:column;gap:16px;max-width:1100px;margin:0 auto;width:100%}
+.goal-banner{display:flex;align-items:center;gap:14px;background:var(--panel);border-radius:18px;padding:14px 16px;box-shadow:0 0 0 2px var(--line)}
+.goal-banner .gb-txt{flex:1;display:flex;flex-direction:column;gap:4px}
+.goal-banner b{font:400 20px var(--disp)}
+.goal-banner .bar2{height:9px;border-radius:5px;background:var(--bg);overflow:hidden}.goal-banner .bar2 i{display:block;height:100%;background:var(--gold)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tab{border:0;border-radius:12px;padding:9px 14px;background:var(--panel2);color:var(--dim);font-weight:900;box-shadow:0 4px 0 var(--raise)}
+.tab[aria-selected=true]{background:var(--gold);color:#2a1a00;box-shadow:0 4px 0 #8a5c00}
+.shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+.item{background:var(--panel);border-radius:20px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 0 0 2px var(--line);position:relative}
+.item.equipped{box-shadow:0 0 0 3px var(--mint)}
+.item.locked .preview{filter:grayscale(.9) brightness(.55)}
+.item h4{margin:0;font:400 19px var(--disp)}
+.item p{margin:0;font-size:13px;color:var(--dim);flex:1}
+.item .tagline{font-size:11px;font-weight:900;letter-spacing:.1em;color:var(--gold)}
+.item .btn{min-height:44px}
+.item .owned-n{position:absolute;top:20px;right:22px;z-index:2;font:400 20px var(--disp);color:var(--gold);background:var(--bg);border-radius:999px;padding:0 9px}
+.preview{height:92px;border-radius:14px;background:var(--floor);display:flex;align-items:center;justify-content:center;gap:10px;position:relative;overflow:hidden;--ts:64px}
+.preview .pv-actor{position:relative;width:64px;height:64px}
+.preview .pv-portal{position:relative;width:64px;height:64px}
+.preview .tile.exit{width:64px;height:64px}
+.pv-trail{display:flex;gap:8px;align-items:center}
+.pv-trail i{width:16px;height:16px;border-radius:50%}
+.shop-cta{display:flex;align-items:center;gap:12px;width:min(560px,100%);border:0;color:var(--ink);background:var(--panel2);border-radius:18px;padding:12px 14px;box-shadow:0 5px 0 var(--raise);text-align:left;position:relative}
+.shop-cta:active{transform:translateY(4px);box-shadow:0 1px 0 var(--raise)}
+.dc-ico.shopi{background:var(--violet);color:#1a0b33}
+.shop-new{font-size:11px;font-weight:900;background:var(--mint);color:#062a1a;border-radius:7px;padding:2px 8px}
+.btn.boost{background:#2a2110;box-shadow:0 5px 0 #120e04,inset 0 0 0 2px #ffc24b66}
+.btn.boost svg{color:var(--gold)}
+.unlock-card{display:flex;align-items:center;gap:12px;width:100%;background:#13302a;border:2px solid var(--mint);border-radius:14px;padding:10px 12px;text-align:left;color:#d4ffe9;font-weight:800;animation:drop .5s var(--ease-pop)}
+
+/* ---------- echo faces (eyes follow the trace via --lx/--ly) ---------- */
+.face{display:block;position:relative;width:72%;height:64%}
+.g.hide{display:none}
+.face b{position:absolute;top:18%;width:24%;height:34%;border-radius:50%;background:currentColor;transform:translate(var(--lx,0),var(--ly,0));transition:transform .18s}
+.face b:nth-child(1){left:14%}.face b:nth-child(2){right:14%}
+.face u{position:absolute;left:30%;right:30%;bottom:6%;height:24%;border:0 solid currentColor;border-bottom-width:calc(var(--ts,56px)*.05);border-radius:0 0 50% 50%}
+.face.f-sleepy b{height:8%;top:34%;border-radius:3px}
+.face.f-sleepy u{left:40%;right:40%;height:18%;border-width:calc(var(--ts,56px)*.04);border-radius:50%}
+.face.f-robot b:nth-child(1){left:8%;right:8%;width:auto;height:26%;border-radius:4px;box-shadow:0 0 8px currentColor}
+.face.f-robot b:nth-child(2){display:none}
+.face.f-robot u{border-bottom-style:dashed;border-radius:0;height:14%}
+.face.f-cyclops b:nth-child(1){left:30%;width:40%;height:52%;top:6%}
+.face.f-cyclops b:nth-child(2){display:none}
+.face.f-cyclops u{left:36%;right:36%}
+.face.f-stareyes b{border-radius:0;clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);width:30%;height:42%;top:10%}
+.face.f-royal::before{content:'';position:absolute;left:24%;right:24%;top:-30%;height:26%;background:var(--gold);clip-path:polygon(0 100%,0 20%,25% 60%,50% 0,75% 60%,100% 20%,100% 100%)}
+.num{position:absolute;right:-4%;bottom:-4%;min-width:36%;height:36%;border-radius:999px;background:#0d0922;color:#fff;font:400 calc(var(--ts,56px)*.18)/1.9 var(--disp);text-align:center;box-shadow:0 0 0 2px currentColor}
+.glyph .num{font-size:11px;line-height:17px;height:17px;min-width:17px}
+.echo .shape span,.glyph>span{position:relative;display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+
+/* ---------- player orbs ---------- */
+.orb.o-sunset{background:radial-gradient(circle at 35% 30%,#fff,#ffd1a3 35%,#ff7a59 70%);box-shadow:0 0 24px #ff7a59,0 5px 0 #a83e2a}
+.orb.o-plasma{background:radial-gradient(circle at 35% 30%,#fff,#ffb3f0 30%,#d33bff 70%);box-shadow:0 0 26px #d33bff,0 5px 0 #6a1a8a}
+.orb.o-ghost{background:radial-gradient(circle at 35% 30%,#ffffffcc,#ffffff44 60%,transparent 72%);box-shadow:0 0 18px #ffffff88;outline:3px dashed #ffffffaa;outline-offset:-3px}
+.orb.o-goldorb{background:radial-gradient(circle at 35% 30%,#fff,#ffe29a 35%,#ffb000 70%);box-shadow:0 0 28px #ffc24b,0 5px 0 #8a5c00}
+/* ---------- trails ---------- */
+.dot.t-sparks{border-radius:0;background:#fff;clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);inset:28%}
+.dot.t-rainbow{animation:rainbowDot 1.2s linear infinite}
+@keyframes rainbowDot{to{filter:hue-rotate(360deg)}}
+.dot.t-rainbow{background:#ff5c8a}
+.dot.t-embers{background:#ff7a3d;box-shadow:0 0 10px #ff7a3d}
+/* ---------- portals ---------- */
+.tile.exit.p-galaxy:not(.locked)::before{background:conic-gradient(#c49bff,#ff5c8a,#4fe3ff,#c49bff);box-shadow:0 0 26px #c49bff99}
+.tile.exit.p-sunportal:not(.locked)::before{background:conic-gradient(#ffc24b,#ff5c8a,#ff9a5e,#ffc24b);box-shadow:0 0 26px #ffc24b99}
+.tile.exit.p-void:not(.locked)::before{background:conic-gradient(#000,#6e64a8,#000,#fff,#000);box-shadow:0 0 26px #ffffff66}
+@media (max-width:640px){.shop-body{padding:0 12px 24px}.shop-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.preview{height:76px}}
+
+.item .btn .coin-ico{background:#fff3c4;box-shadow:inset 0 -3px 0 #c98a12}
+.preview .glyph{flex-shrink:1}
