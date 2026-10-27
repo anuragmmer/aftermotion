@@ -859,3 +859,27 @@ body[data-aura=aurora] .board-frame{box-shadow:inset 0 4px 0 var(--wallHi),inset
 .ach.ready{box-shadow:0 0 0 2px var(--gold),0 0 22px #ffc24b44}.ach.done{opacity:.7}.ach.done .ach-top b{color:var(--mint)}
 .earn-list{display:flex;flex-direction:column;gap:6px}.earn{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--dim)}.earn i{font-style:normal;color:var(--mute)}.earn.ok{color:var(--ink)}.earn.ok i{color:var(--mint)}.earn .plan-btn{margin-left:auto}
 #rwBody .stat-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+
+/* ---------- animated trails (ta-*): they keep moving on the board ---------- */
+.dot.ta{overflow:visible}
+.dot.ta-spinstar{border-radius:0;inset:24%;background:linear-gradient(135deg,var(--c2),var(--c1));clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);animation:spin 1.6s linear infinite,taTwinkle 1s ease-in-out infinite;box-shadow:none;filter:drop-shadow(0 0 6px var(--c1))}
+.dot.ta-ripple{background:var(--c1);box-shadow:0 0 12px var(--c1)}
+.dot.ta-ripple::before,.dot.ta-ripple::after{content:'';position:absolute;inset:-30%;border-radius:50%;border:2px solid var(--c2);animation:taRipple 1.4s ease-out infinite}
+.dot.ta-ripple::after{animation-delay:.7s;border-color:var(--c1)}
+@keyframes taRipple{from{transform:scale(.4);opacity:1}to{transform:scale(1.9);opacity:0}}
+.dot.ta-heartbeat{border-radius:0;inset:26%;background:var(--c1);clip-path:polygon(50% 95%,12% 58%,2% 35%,10% 14%,28% 6%,44% 14%,50% 26%,56% 14%,72% 6%,90% 14%,98% 35%,88% 58%);animation:taBeat 0.9s ease-in-out infinite;box-shadow:none;filter:drop-shadow(0 0 8px var(--c1))}
+@keyframes taBeat{0%,100%{transform:scale(1)}15%{transform:scale(1.35)}30%{transform:scale(.95)}45%{transform:scale(1.2)}}
+.dot.ta-twinkle{border-radius:0;inset:20%;background:radial-gradient(circle,#fff 0 12%,var(--c2) 20%,transparent 60%),linear-gradient(var(--c1),var(--c1)) center/14% 100% no-repeat,linear-gradient(90deg,var(--c1),var(--c1)) center/100% 14% no-repeat;box-shadow:none;animation:taTwinkle .8s ease-in-out infinite,spin 3s linear infinite}
+@keyframes taTwinkle{50%{opacity:.35;filter:brightness(1.8)}}
+.dot.ta-orbit{background:radial-gradient(circle at 35% 30%,#fff,var(--c1) 60%,var(--c3));box-shadow:0 0 12px var(--c1);animation:spin 1.8s linear infinite}
+.dot.ta-orbit::before,.dot.ta-orbit::after{content:'';position:absolute;width:32%;height:32%;border-radius:50%;background:var(--c2);box-shadow:0 0 6px var(--c2);top:-45%;left:34%}
+.dot.ta-orbit::after{top:auto;bottom:-45%;background:#fff}
+.dot.ta-helix{background:transparent;box-shadow:none}
+.dot.ta-helix::before,.dot.ta-helix::after{content:'';position:absolute;inset:20%;border-radius:50%;background:var(--c1);box-shadow:0 0 10px var(--c1);animation:taHelix 1.1s ease-in-out infinite}
+.dot.ta-helix::after{background:var(--c2);box-shadow:0 0 10px var(--c2);animation-delay:-.55s}
+@keyframes taHelix{0%,100%{transform:translateX(-90%) scale(.7)}50%{transform:translateX(90%) scale(1.2)}}
+.dot.ta-prism{background:conic-gradient(var(--c1),var(--c2),var(--c3),#fff,var(--c1));box-shadow:0 0 14px var(--c1);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);border-radius:0;inset:24%;animation:spin 2s linear infinite,taHue 3s linear infinite}
+@keyframes taHue{to{filter:hue-rotate(360deg)}}
+.dot.ta-flame{border-radius:50% 50% 50% 50%/60% 60% 40% 40%;inset:24% 30% 26%;background:radial-gradient(circle at 50% 75%,#fff 0 15%,var(--c2) 30%,var(--c1) 60%,transparent 75%);box-shadow:none;filter:drop-shadow(0 0 8px var(--c1));transform-origin:50% 90%;animation:taFlicker .35s ease-in-out infinite alternate}
+@keyframes taFlicker{from{transform:scale(1,1) skewX(-4deg)}to{transform:scale(.9,1.18) skewX(5deg)}}
+.reduce .dot.ta,.reduce .dot.ta::before,.reduce .dot.ta::after{animation:none!important}

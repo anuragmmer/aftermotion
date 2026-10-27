@@ -88,6 +88,13 @@
     if (Math.random() < 0.6) bolts.push({ pts: jag(x1, y1, (x1 + x2) / 2 + rnd(-60, 60), (y1 + y2) / 2 + rnd(-20, 40), 0.25), life: 10, max: 10, c: color || '#bfeaff', w: 1.2 });
     kick();
   };
+  /* A glowing ribbon that streaks from one tile to the next and fades, with sparkles along it. */
+  A.ribbon = function (x1, y1, x2, y2, c1, c2) {
+    if (!ctx) return;
+    fx.push({ k: 'ribbon', x: 0, y: 0, vx: 0, vy: 0, x1, y1, x2, y2, c: c1, c2: c2 || '#fff', life: 34, max: 34 });
+    for (let i = 0; i < 8; i++) { const t = i / 7; fx.push({ k: 'spark', x: x1 + (x2 - x1) * t + rnd(-6, 6), y: y1 + (y2 - y1) * t + rnd(-6, 6), vx: rnd(-0.5, 0.5), vy: rnd(-1, 0), life: 24 + i * 2, max: 24 + i * 2, c: i % 2 ? c1 : c2 || '#fff', s: rnd(1, 2.4), glow: 1 }); }
+    kick();
+  };
   /* Sky strike onto a point, with a screen flash. */
   A.strike = function (x, y) { A.bolt(x + rnd(-160, 160), -20, x, y, '#dff4ff', 3.2); A.flash(); A.burst('sparks', x, y, 14); };
   A.flash = function () {
@@ -154,7 +161,7 @@
     for (let i = fx.length - 1; i >= 0; i--) {
       const p = fx[i]; p.life--; if (p.life <= 0) { fx.splice(i, 1); continue; }
       const a = p.life / p.max; p.x += p.vx; p.y += p.vy;
-      if (p.k !== 'codeb' && p.k !== 'shoot') p.vy += 0.04;
+      if (p.k !== 'codeb' && p.k !== 'shoot' && p.k !== 'ribbon') p.vy += 0.04;
       ctx.globalAlpha = a; ctx.fillStyle = p.c; ctx.strokeStyle = p.c;
       if (p.glow) { ctx.shadowColor = p.c; ctx.shadowBlur = 8; }
       switch (p.k) {
@@ -168,6 +175,12 @@
         case 'starb': drawStar(p.x, p.y, p.s); break;
         case 'flame': p.s *= 0.97; ctx.shadowColor = p.c; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(p.x, p.y, p.s, 0, 6.28); ctx.fill(); break;
         case 'codeb': ctx.font = '13px monospace'; ctx.fillText(p.ch, p.x, p.y); break;
+        case 'ribbon': {
+          const g = ctx.createLinearGradient(p.x1, p.y1, p.x2, p.y2); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.6, p.c); g.addColorStop(1, p.c2);
+          ctx.strokeStyle = g; ctx.lineCap = 'round'; ctx.shadowColor = p.c; ctx.shadowBlur = 16; ctx.lineWidth = 3 + 9 * a;
+          ctx.beginPath(); ctx.moveTo(p.x1, p.y1); ctx.lineTo(p.x2, p.y2); ctx.stroke();
+          ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5 * a; ctx.globalAlpha = a * 0.8; ctx.stroke(); break;
+        }
         case 'shoot': ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 6, p.y - p.vy * 6); ctx.stroke(); break;
       }
       ctx.shadowBlur = 0; ctx.globalAlpha = 1;

@@ -74,14 +74,14 @@
      style class plus palette variables. */
   const genOf = (id) => { const it = Shop.byId(id); return it && it.gen ? it.gen : null; };
   const orbHTML = (id) => { const g = genOf(id); return g ? '<div class="orb og og-' + g.style + '" style="' + Cos.vars(g) + '"></div>' : '<div class="orb o-' + id + '"></div>'; };
-  const dotHTML = (id, tag, extra) => { tag = tag || 'div'; const g = genOf(id); return g ? '<' + tag + ' class="dot tg tg-' + g.style + '" style="' + Cos.vars(g) + (extra || '') + '"></' + tag + '>' : '<' + tag + ' class="dot t-' + id + '"' + (extra ? ' style="' + extra + '"' : '') + '></' + tag + '>'; };
+  const dotHTML = (id, tag, extra) => { tag = tag || 'div'; const g = genOf(id); return g ? '<' + tag + ' class="dot tg ' + (g.anim ? 'ta ta-' : 'tg-') + g.style + '" style="' + Cos.vars(g) + (extra || '') + '"></' + tag + '>' : '<' + tag + ' class="dot t-' + id + '"' + (extra ? ' style="' + extra + '"' : '') + '></' + tag + '>'; };
   function portalClass(el, id) {
     const g = genOf(id);
     if (!g) return ' p-' + id;
     el.style.setProperty('--c1', g.c1); el.style.setProperty('--c2', g.c2); el.style.setProperty('--c3', g.c3);
     return ' pg pg-' + g.style;
   }
-  const trailOf = (id) => { const it = Shop.byId(id); return it && it.gen ? { color: it.gen.c1, burst: it.burst, burstColor: it.gen.c1 } : TRAILS[id] || {}; };
+  const trailOf = (id) => { const it = Shop.byId(id); return it && it.gen ? { color: it.gen.c1, burst: it.burst, burstColor: it.gen.c1, ribbon: it.gen.anim ? [it.gen.c1, it.gen.c2] : null } : TRAILS[id] || {}; };
   const center = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
 
   /* ================= screens ================= */
@@ -459,7 +459,7 @@
       if (en.state === 'TELEGRAPH' && en.target) actor('tele', 'tele', '<div class="ret"></div><b></b>', en.target.x, en.target.y, seen).querySelector('b').textContent = en.t;
     }
     for (const h of S.helpers) actor('helper' + h.id, 'helper', '<div class="dia"></div><b></b>', h.x, h.y, seen).querySelector('b').textContent = h.state === 'PERFORM' ? h.hold : h.life;
-    G.trail.forEach((p, i) => { const el = actor('trail' + i, 'trail', dotHTML(prog.equip.trail), p.x, p.y, seen); el.style.opacity = 0.32 - i * 0.1; el.firstChild.style.transform = 'scale(' + (1 - i * 0.22) + ')'; });
+    G.trail.forEach((p, i) => { const el = actor('trail' + i, 'trail', dotHTML(prog.equip.trail), p.x, p.y, seen); el.style.opacity = 0.32 - i * 0.1; el.firstChild.style.scale = String(1 - i * 0.22); });
     for (const e of S.echoes) {
       if (e.hopping && e.hop.origin) actor('ghost' + e.id, 'echo ghost-origin ' + e.type + (charOf() ? ' char' : ''), echoBody(e, true), e.hop.origin.x, e.hop.origin.y, seen);
       const el = actor('echo' + e.id, 'echo ' + e.type + (charOf() ? ' char' : '') + (e.required ? ' required' : '') + (e.state === 'FAVOURED' ? ' fav' : '') + (e.state === 'COOLDOWN' ? ' cool' : ''),
@@ -955,7 +955,7 @@
         '<small>' + gate.have.toLocaleString('en-US') + ' / ' + gate.need.toLocaleString('en-US') + ' · <b>Step 2:</b> ' + it.price.toLocaleString('en-US') + ' coins</small></div><button class="btn" data-why="' + it.id + '"><svg><use href="#i-lock"/></svg>Locked</button>';
       else if (it.price) btn = (prog.coins < it.price ? '<small class="need">' + (it.price - prog.coins).toLocaleString('en-US') + ' more coins needed</small>' : '') + '<button class="btn gold" data-buy="' + it.id + '"' + (prog.coins < it.price ? ' disabled' : '') + '><i class="coin-ico" style="width:18px;height:18px"></i>' + it.price.toLocaleString('en-US') + '</button>';
       else btn = '<button class="btn" data-why="' + it.id + '"><svg><use href="#i-lock"/></svg>Locked</button>';
-      const tag = it.milestone ? (owned ? 'EARNED REWARD' : 'REWARD: ' + Shop.milestoneText(it).toUpperCase()) : it.default ? 'STARTER' : it.slot === 'boost' ? 'BOOST' : gate ? (owned ? 'LEGENDARY · YOURS' : gate.met ? 'LEGENDARY · UNLOCKED FOR SALE' : 'LEGENDARY · MILESTONE + COINS') : 'SHOP';
+      const tag = it.milestone ? (owned ? 'EARNED REWARD' : 'REWARD: ' + Shop.milestoneText(it).toUpperCase()) : it.default ? 'STARTER' : it.slot === 'boost' ? 'BOOST' : gate ? (owned ? 'LEGENDARY · YOURS' : gate.met ? 'LEGENDARY · UNLOCKED FOR SALE' : 'LEGENDARY · MILESTONE + COINS') : it.gen && it.gen.anim ? '✦ ANIMATED' : 'SHOP';
       return head + '<div class="item' + (it.rarity && shopTab !== 'boost' ? ' r-' + it.rarity : '') + (on ? ' equipped' : '') + (!owned && it.slot !== 'boost' && !it.price ? ' locked' : '') + '">' +
         (it.slot === 'boost' ? '<span class="owned-n">×' + prog.inv[it.boost] + '</span>' : '') + previewHTML(it) +
         '<span class="tagline">' + esc(tag) + '</span><h4>' + esc(it.name) + '</h4>' +
@@ -1209,6 +1209,7 @@
     const from = tileRect(prev.player.x, prev.player.y), to = tileRect(px, py);
     if (to && (T.burst || T.bolt)) {
       const tx = to.left + to.width / 2, ty = to.top + to.height / 2;
+      if (T.ribbon && from) Amb.ribbon(from.left + from.width / 2, from.top + from.height / 2, tx, ty, T.ribbon[0], T.ribbon[1]);
       if (T.bolt && from) { Amb.bolt(from.left + from.width / 2, from.top + from.height / 2, tx, ty, '#bfeaff', 2.4); }
       if (T.burst) Amb.burst(T.burst, tx, ty, 10, T.burstColor);
     }

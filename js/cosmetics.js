@@ -62,8 +62,34 @@
     };
     return D[slot][style].replace('%s', pal);
   }
+  /* Animated trails: a separate batch (own id prefix) so the static set above never reshuffles.
+     Each one moves continuously on the board and draws a glowing ribbon between tiles. */
+  const ANIM = {
+    spinstar: ['rare', 'Spinners', 'Spinning %s stars.', 'stars'], ripple: ['rare', 'Ripples', '%s rings that keep rippling outward.', 'bubbles'],
+    heartbeat: ['rare', 'Heartbeat', 'Beating %s hearts.', 'hearts'], twinkle: ['rare', 'Twinkle', '%s sparkles that flash on and off.', 'sparks'],
+    orbit: ['epic', 'Orbit', 'Every step leaves a %s moon with two satellites circling it.', 'stars'], helix: ['epic', 'Helix', 'Two %s sparks spiral around each other.', 'sparks'],
+    prism: ['epic', 'Prism', 'A spinning %s prism that shifts colour.', 'confetti'], flame: ['epic', 'Wisp', 'Flickering %s spirit flames.', 'embers'],
+  };
+  function generateAnim(count, seed) {
+    const pairs = [], styles = Object.keys(ANIM);
+    PALETTES.forEach((pal) => styles.forEach((st) => pairs.push([pal, st])));
+    let x = seed >>> 0;
+    const rnd = () => ((x = (Math.imul(x, 1664525) + 1013904223) >>> 0) / 4294967296);
+    for (let i = pairs.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [pairs[i], pairs[j]] = [pairs[j], pairs[i]]; }
+    // two of each style, so every animation is represented
+    const per = {}, out = [];
+    for (const [pal, st] of pairs) {
+      if ((per[st] || 0) >= count / styles.length) continue;
+      per[st] = (per[st] || 0) + 1;
+      const A = ANIM[st], n = out.filter((o) => o.rarity === A[0]).length;
+      out.push({ id: 'ta-' + pal[0].toLowerCase() + '-' + st, slot: 'trail', rarity: A[0], price: A[0] === 'rare' ? 2600 + (n % 6) * 300 : 5500 + (n % 8) * 500,
+        name: pal[0] + ' ' + A[1], desc: A[2].replace('%s', pal[0]) + ' Animated.', gen: { style: st, c1: pal[1], c2: pal[2], c3: pal[3], anim: true }, burst: A[3] });
+      if (out.length >= count) break;
+    }
+    return out;
+  }
   const ORBS = generate('orb', 40, 7, 'og');
-  const TRAILS = generate('trail', 40, 11, 'tg');
+  const TRAILS = generate('trail', 40, 11, 'tg').concat(generateAnim(16, 23));
   const PORTALS = generate('portal', 40, 13, 'pg');
 
   const vars = (g) => '--c1:' + g.c1 + ';--c2:' + g.c2 + ';--c3:' + g.c3;
