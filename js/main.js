@@ -82,6 +82,8 @@
     return ' pg pg-' + g.style;
   }
   const trailOf = (id) => { const it = Shop.byId(id); return it && it.gen ? { color: it.gen.c1, burst: it.burst, burstColor: it.gen.c1, ribbon: it.gen.anim ? [it.gen.c1, it.gen.c2] : null } : TRAILS[id] || {}; };
+  // What the board shows for a slot: a try-on item while one is active, otherwise your own.
+  const look = (slot) => (G && G.trial && G.trial.left > 0 && G.trial.slot === slot ? G.trial.id : prog.equip[slot]);
   const center = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
 
   /* ================= screens ================= */
@@ -95,6 +97,7 @@
     if (name === 'title' || name === 'echoes' || name === 'rewards') setTheme('');
     if (name === 'map') setTheme('w' + (mapWorld || LEVELS[P.nextLevelIndex(prog, LEVELS)].world));
     $$('.screen').forEach((s) => (s.hidden = s.id !== name));
+    if (name !== 'game') applyAura(); // drop a try-on aura when leaving the level
     closeModal();
     coins();
     if (name === 'title') renderTitle();
@@ -258,7 +261,8 @@
 
   /* ================= game ================= */
   function startLevel(i, opts) {
-    const def = LEVELS[i], r = AM.loadLevel(def);
+    const def = LEVELS[i], r = AM.loadLevel(def), prevTrial = G && G.idx === i ? G.trial : null;
+    if (G && G.trial && G.trial.item.aura) applyAura();
     const daily = !!(opts && opts.daily) || !!(opts && opts.restart && G && G.daily);
     G = { daily, react: def.id % 5 === 0, idx: i, def, L: r.level, S: r.state, undo: [], log: [], hop: false, oracle: G ? G.oracle : false, usedHint: false, hint: null, trail: [], startCoins: r.state.coins.length, movesUsed: false, luckUsed: false, bumps: 0, steps: 0, favours: 0, undos: 0 };
     r.state.echoes.forEach((e) => (prog.seen[e.type] = true));
@@ -268,11 +272,13 @@
     $('#gWorld').textContent = daily ? 'DAILY ECHO · ' + today() : 'WORLD ' + def.world + ' · ' + WORLDS[def.world - 1].name.toUpperCase() + ' · LEVEL ' + def.id;
     $('#gName').innerHTML = esc(def.name) + '<span class="boss-tag">BOSS</span><span class="daily-tag">DAILY</span>';
     setTheme(daily ? 'daily' : 'w' + def.world, !daily && def.id % 10 === 0);
+    maybeTrial(def, opts && opts.restart && prevTrial && prevTrial.left > 0 ? prevTrial : null);
     buildBoard(); buildCards(); fit(true);
     const fresh = !cleared(def) && !(opts && opts.restart) && !daily;
     G.tut = TUTORIALS[def.id] && !cleared(def) ? { steps: TUTORIALS[def.id], i: 0 } : null;
     G.coach = { h: '<span class="lesson-inline">Lesson: ' + esc(def.lesson) + '</span> ' + esc(def.intro), c: '' };
     G.log = [{ h: opts && opts.restart ? 'Level restarted.' : 'Level started.', c: '' }];
+    if (G.trial && !G.tut) announceTrial();
     render(true);
     if (fresh) lessonCard();
   }
@@ -290,6 +296,65 @@
     const d = G.def;
     openModal('<div class="kicker">LEVEL ' + d.id + ' · PLAN</div><h2>' + esc(d.name) + '</h2><div class="lesson-badge"><svg><use href="#i-bulb"/></svg><span>' + esc(d.lesson) + '</span></div>' +
       '<p class="plan">' + esc(d.plan) + '</p><div class="row"><button class="btn gold big" id="psOk">Back to the level</button></div>', () => on('psOk', closeModal));
+  }
+
+  /* ---------- try-on: now and then a level lends you a cosmetic you don't own yet ---------- */
+  const TRY = { moves: 8, every: 3, chance: 0.45, discount: 0.15, minLevel: 5 };
+  const TRY_RARITY = { common: 3, rare: 4, epic: 3, legendary: 0.5 };
+  const SLOT_NAME = { face: 'character', orb: 'orb', trail: 'trail', portal: 'portal' };
+  function maybeTrial(def, keep) {
+    G.trial = keep || null;
+    if (!keep) {
+      const t = prog.trial = Object.assign({ gap: 0, n: 0 }, prog.trial || {});
+      if (TUTORIALS[def.id] || G.daily || def.id < TRY.minLevel) return;
+      t.gap++;
+      if (t.gap >= TRY.every && Math.random() < TRY.chance) { const it = pickTrial(); if (it) { t.gap = 0; t.n++; G.trial = { id: it.id, slot: it.slot, left: TRY.moves, item: it }; } }
+      persist();
+    }
+    if (G.trial && G.trial.left > 0 && G.trial.item.aura && prog.ambient !== false && !reduced()) Amb.setMode(G.trial.item.aura);
+  }
+  function pickTrial() {
+    const slots = G.S.echoes.length ? ['orb', 'trail', 'trail', 'portal', 'face'] : ['orb', 'trail', 'trail', 'portal'];
+    const slot = slots[Math.floor(Math.random() * slots.length)];
+    const pool = Shop.CATALOG.filter((c) => c.slot === slot && !c.default && !c.milestone && c.price && !Shop.owns(prog, LEVELS, c));
+    // items you could almost afford are a little more likely: the try-on should feel within reach
+    const w = pool.map((c) => (TRY_RARITY[c.rarity] || 1) * (c.price <= prog.coins * 1.3 + 300 ? 1.7 : 1));
+    let r = Math.random() * w.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < pool.length; i++) if ((r -= w[i]) < 0) return pool[i];
+    return pool[0] || null;
+  }
+  const trialPrice = (it) => (it.gate ? it.price : Math.round((it.price * (1 - TRY.discount)) / 10) * 10);
+  function trialTick() {
+    const t = G.trial; if (!t || t.left <= 0) return;
+    t.left--;
+    if (t.left === 0) { applyAura(); buildBoard(); buildCards(); render(true); }
+  }
+  function renderTrial() {
+    const el = $('#tryon'), t = G && G.trial;
+    if (!t || t.dismissed || G.S.status === 'won') { el.hidden = true; return; }
+    const it = t.item, R0 = Chars.RARITY[it.rarity], owned = Shop.owns(prog, LEVELS, it), gate = it.gate ? Shop.gateStatus(prog, LEVELS, it.gate) : null, price = trialPrice(it);
+    el.hidden = false; el.className = 'tryon' + (t.left > 0 ? '' : ' ended') + (it.rarity === 'legendary' ? ' leg' : '');
+    el.style.setProperty('--rc', R0.color);
+    const what = '<b>' + esc(it.name) + '</b><small style="color:' + R0.color + '">' + R0.label.toUpperCase() + ' ' + SLOT_NAME[it.slot].toUpperCase() + (it.gen && it.gen.anim ? ' · ANIMATED' : '') + (it.aura ? ' · AURA' : '') + '</small>';
+    let buy;
+    if (owned) buy = '<span class="to-own">Yours! Equip it in the Shop.</span>';
+    else if (gate && !gate.met) buy = '<span class="to-gate"><svg><use href="#i-lock"/></svg>' + esc(gate.text) + ' (' + gate.have + '/' + gate.need + '), then ' + it.price.toLocaleString('en-US') + ' coins</span>';
+    else buy = (price < it.price ? '<s>' + it.price.toLocaleString('en-US') + '</s>' : '') + '<button class="btn gold" id="toBuy"' + (prog.coins < price ? ' disabled' : '') + '><i class="coin-ico"></i>' + price.toLocaleString('en-US') + '</button>' +
+      (prog.coins < price ? '<small class="to-need">' + (price - prog.coins).toLocaleString('en-US') + ' more coins</small>' : '');
+    el.innerHTML = '<span class="to-tag">' + (t.left > 0 ? '✦ TRY-ON · ' + plural(t.left, 'move') + ' left' : 'TRY-ON OVER · LIKED IT?') + '</span><div class="to-what">' + what + '</div><div class="to-buy">' + buy + '</div>' +
+      (price < it.price && !owned ? '<small class="to-deal">' + Math.round(TRY.discount * 100) + '% off until you leave this level</small>' : '') + (t.left > 0 ? '' : '<button class="to-x" id="toX" aria-label="Dismiss">✕</button>');
+    on('toX', () => { t.dismissed = true; renderTrial(); });
+    on('toBuy', () => {
+      const r = Shop.buy(prog, LEVELS, it.id, price);
+      if (!r.ok) { toast(r.reason); SFX.echoBlocked(); return; }
+      Shop.equip(prog, LEVELS, it.id); persist(); SFX.win(); buzz(30); confetti();
+      toast(it.name + ' is yours and equipped!'); t.left = 0; applySettings(); buildBoard(); buildCards(); render(true);
+    });
+  }
+  function announceTrial() {
+    const t = G.trial; if (!t || t.left !== TRY.moves) return;
+    const it = t.item;
+    say([{ h: '✦ Try-on! For your next ' + TRY.moves + ' moves you are using <b>' + esc(it.name) + '</b>, ' + (/^[aeiou]/i.test(Chars.RARITY[it.rarity].label) ? 'an ' : 'a ') + Chars.RARITY[it.rarity].label.toLowerCase() + ' ' + SLOT_NAME[it.slot] + (it.aura ? ' with its ' + esc(Shop.AURAS[it.aura].name) + ' aura' : '') + '. ' + (it.gate ? 'Legendary: it has to be earned.' : 'Like it? It is ' + Math.round(TRY.discount * 100) + '% off while you are in this level.'), c: 'gold' }]);
   }
 
   /* ---------- tutorials: scripted, hands-on first steps ---------- */
@@ -368,7 +433,7 @@
         let lbl = '';
         if (L.plates[k]) { cls += ' plate'; lbl = L.plates[k].toLowerCase(); el.style.setProperty('--pc', PLATE_COLOR[L.plates[k]]); }
         if (L.doors[k]) { cls = 'tile floor door'; lbl = L.doors[k]; el.style.setProperty('--pc', PLATE_COLOR[L.doors[k]]); }
-        if (AM.isExit(L, x, y)) { cls += ' exit' + portalClass(el, prog.equip.portal); lbl = lbl || ''; if (L.exitLock.length) { cls += ' powered'; lbl = L.exitLock[0].toLowerCase(); el.style.setProperty('--pc', PLATE_COLOR[L.exitLock[0]]); } }
+        if (AM.isExit(L, x, y)) { cls += ' exit' + portalClass(el, look('portal')); lbl = lbl || ''; if (L.exitLock.length) { cls += ' powered'; lbl = L.exitLock[0].toLowerCase(); el.style.setProperty('--pc', PLATE_COLOR[L.exitLock[0]]); } }
         el.className = cls;
         if (lbl) el.innerHTML = '<span class="lbl">' + lbl + '</span>';
         if (AM.isExit(L, x, y)) el.insertAdjacentHTML('beforeend', '<span class="peye"></span>');
@@ -459,7 +524,7 @@
       if (en.state === 'TELEGRAPH' && en.target) actor('tele', 'tele', '<div class="ret"></div><b></b>', en.target.x, en.target.y, seen).querySelector('b').textContent = en.t;
     }
     for (const h of S.helpers) actor('helper' + h.id, 'helper', '<div class="dia"></div><b></b>', h.x, h.y, seen).querySelector('b').textContent = h.state === 'PERFORM' ? h.hold : h.life;
-    G.trail.forEach((p, i) => { const el = actor('trail' + i, 'trail', dotHTML(prog.equip.trail), p.x, p.y, seen); el.style.opacity = 0.32 - i * 0.1; el.firstChild.style.scale = String(1 - i * 0.22); });
+    G.trail.forEach((p, i) => { const el = actor('trail' + i, 'trail', dotHTML(look('trail')), p.x, p.y, seen); el.style.opacity = 0.32 - i * 0.1; el.firstChild.style.scale = String(1 - i * 0.22); });
     for (const e of S.echoes) {
       if (e.hopping && e.hop.origin) actor('ghost' + e.id, 'echo ghost-origin ' + e.type + (charOf() ? ' char' : ''), echoBody(e, true), e.hop.origin.x, e.hop.origin.y, seen);
       const el = actor('echo' + e.id, 'echo ' + e.type + (charOf() ? ' char' : '') + (e.required ? ' required' : '') + (e.state === 'FAVOURED' ? ' fav' : '') + (e.state === 'COOLDOWN' ? ' cool' : ''),
@@ -486,13 +551,13 @@
       el.querySelector('b').textContent = e.activeB - e.counter;
       el.querySelector('i').textContent = blocked ? '✕' : '';
     }
-    actor('player', 'playerA', '<div class="orb-bob">' + orbHTML(prog.equip.orb) + '</div>', S.player.x, S.player.y, seen);
+    actor('player', 'playerA', '<div class="orb-bob">' + orbHTML(look('orb')) + '</div>', S.player.x, S.player.y, seen);
     // hint marker
     if (G.hint) {
       const a = G.hint;
       if (a.k === 'move') {
         const d = AM.DELTA[a.d];
-        const el = actor('hint', 'hintGhost', '<div class="hring"><i></i></div><div class="hg">' + orbHTML(prog.equip.orb) + '</div>', S.player.x, S.player.y, seen);
+        const el = actor('hint', 'hintGhost', '<div class="hring"><i></i></div><div class="hg">' + orbHTML(look('orb')) + '</div>', S.player.x, S.player.y, seen);
         el.style.setProperty('--hx', d[0]); el.style.setProperty('--hy', d[1]);
       } else if (a.k === 'hop') actor('hint', 'hintGhost', '<div class="hring" style="transform:none"><i></i></div>', a.x, a.y, seen);
     }
@@ -591,6 +656,7 @@
         return '<div class="' + (o.status === 'won' ? 'win' : '') + '">' + ARROW(o.dir) + '<span>' + esc(o.notes.length ? o.notes.join(' ') : 'Nothing else happens.') + '</span></div>';
       }).join('');
     }
+    renderTrial();
     // feed
     $('#feed').innerHTML = G.log.slice(0, 6).map((l) => '<li class="' + l.c + '">' + l.h + '</li>').join('');
     // coach
@@ -622,7 +688,7 @@
   // Echo faces: 'letter' shows the echo's letter; any other face hides it and draws eyes + mouth.
   const faceHTML = (id) => (id === 'letter' ? '' : '<i class="face f-' + id + '"><b></b><b></b><u></u></i>');
   const letterHTML = (t, id, n) => '<em class="g' + (id === 'letter' ? '' : ' hide') + '">' + ECHO_INFO[t].glyph + (n && id === 'letter' ? '<sub>' + n + '</sub>' : '') + '</em>';
-  const charOf = () => (prog.equip.face !== 'letter' && Chars.ROSTER.find((c) => c.id === prog.equip.face)) || null;
+  const charOf = () => (look('face') !== 'letter' && Chars.ROSTER.find((c) => c.id === look('face'))) || null;
   const kindBadge = (e) => ECHO_INFO[e.type].glyph + (dupNo(e) ? dupNo(e) : '');
   // Board markup for one echo: the equipped character standing on a platform in its kind's colour,
   // with a letter badge, or the classic kind shape when no character is equipped.
@@ -655,7 +721,7 @@
     if (screen !== 'game' || !G || G.S.status !== 'play' || Date.now() - lastInput < 9000) return;
     G.S.echoes.forEach((e) => { const box = actorEls.get('echo' + e.id) && actorEls.get('echo' + e.id).querySelector('.charbox'); if (box && !box.classList.contains('mood-sleep')) mood(e.id, 'sleep', 0); });
   }, 1000);
-  const glyphOf = (e) => letterHTML(e.type, prog.equip.face, dupNo(e)) + faceHTML(prog.equip.face) + (dupNo(e) && prog.equip.face !== 'letter' ? '<sup class="num">' + dupNo(e) + '</sup>' : '');
+  const glyphOf = (e) => letterHTML(e.type, look('face'), dupNo(e)) + faceHTML(look('face')) + (dupNo(e) && look('face') !== 'letter' ? '<sup class="num">' + dupNo(e) + '</sup>' : '');
   const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
   const walker = (e) => e.type === 'trace' || e.type === 'flicker';
   function obstacle(L, S, x, y) {
@@ -812,6 +878,7 @@
     G.undo.push({ S: prev, trail: G.trail.slice(1), d: tally(events, meta) });
     if (G.undo.length > 400) G.undo.shift();
     G.S = next; G.hint = null;
+    if (meta.kind === 'move') trialTick();
     say(explain(prev, next, events, meta));
     tutAdvance(events, meta);
     render();
@@ -1204,7 +1271,7 @@
      every move and the frame beats when an echo acts. */
   function floorFx(prev, next, fired) {
     if (reduced()) return;
-    const px = next.player.x, py = next.player.y, T = trailOf(prog.equip.trail);
+    const px = next.player.x, py = next.player.y, T = trailOf(look('trail'));
     const glow = T.color === 'hue' ? 'hsl(' + ((next.moves * 47) % 360) + ',90%,65%)' : T.color || getComputedStyle(document.body).getPropertyValue('--glow').trim() || '#4fe3ff';
     const from = tileRect(prev.player.x, prev.player.y), to = tileRect(px, py);
     if (to && (T.burst || T.bolt)) {

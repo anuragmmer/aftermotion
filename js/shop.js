@@ -141,15 +141,17 @@
   }
   function owns(prog, levels, item) { return !!(item.default || prog.owned[item.id] || milestoneMet(prog, levels, item)); }
 
-  function buy(prog, levels, id) {
+  /* price: optional override (e.g. the try-on discount); legendary items never take one. */
+  function buy(prog, levels, id, price) {
     init(prog);
     const item = byId(id);
+    if (item && (item.gate || price === undefined)) price = item.price;
     if (!item || !item.price) return { ok: false, reason: 'Not for sale.' };
     const g = gateStatus(prog, levels, item.gate);
     if (!g.met) return { ok: false, reason: 'Locked: ' + g.text + ' (you have ' + g.have.toLocaleString('en-US') + ').' };
     if (item.slot !== 'boost' && owns(prog, levels, item)) return { ok: false, reason: 'Already yours.' };
-    if (prog.coins < item.price) return { ok: false, reason: 'You need ' + (item.price - prog.coins) + ' more coins.' };
-    prog.coins -= item.price;
+    if (prog.coins < price) return { ok: false, reason: 'You need ' + (price - prog.coins) + ' more coins.' };
+    prog.coins -= price;
     if (item.slot === 'boost') prog.inv[item.boost] += item.qty; else prog.owned[item.id] = true;
     return { ok: true };
   }
