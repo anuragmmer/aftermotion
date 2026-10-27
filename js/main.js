@@ -2,7 +2,7 @@
  * Rules live in engine.js, rewards in progress.js; this file only presents state and sends commands. */
 (function () {
   'use strict';
-  const AM = window.AM, LEVELS = window.AMLevels, P = window.AMProgress, SFX = window.AMAudio, Shop = window.AMShop, Chars = window.AMChars, Amb = window.AMAmbient, Cos = window.AMCosmetics, R = window.AMRewards;
+  const AM = window.AM, LEVELS = window.AMLevels, P = window.AMProgress, SFX = window.AMAudio, Shop = window.AMShop, Chars = window.AMChars, Amb = window.AMAmbient, Cos = window.AMCosmetics, R = window.AMRewards, X = window.AMExtras;
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
   const ROT = { UP: 0, RIGHT: 90, DOWN: 180, LEFT: 270 };
@@ -122,11 +122,12 @@
     $('#tDailySub').textContent = di < 0 ? 'Clear level 1 to unlock' : ds.done ? 'Done for today. Back tomorrow!' : 'Today: ' + LEVELS[di].name + ' · reach par for ×2';
     $('#tStreak').innerHTML = ds.streak ? '<svg style="color:var(--gold)"><use href="#i-flame"/></svg>' + ds.streak : '';
     R.ensureQuests(prog, day);
-    const spins = R.spinsAvailable(prog, day), chests = prog.chestQueue.length, claim = R.claimableCount(prog, LEVELS, day), n = spins + chests + claim;
+    const qs = X.quizState(prog, day), quiz = qs.done ? 0 : X.QUIZ.perDay - qs.k, garden = X.gardenState(prog, LEVELS, Date.now());
+    const spins = R.spinsAvailable(prog, day), chests = prog.chestQueue.length, claim = R.claimableCount(prog, LEVELS, day), n = spins + chests + claim + (quiz ? 1 : 0) + (garden.full ? 1 : 0);
     const qDone = prog.quests.list.filter((q) => q.claimed).length;
     $('#tRewards').classList.toggle('ready', n > 0);
     $('#tRewardsBadge').hidden = !n; $('#tRewardsBadge').textContent = n;
-    $('#tRewardsSub').textContent = n ? [chests ? plural(chests, 'chest') : '', spins ? plural(spins, 'spin') : '', claim ? claim + ' to claim' : ''].filter(Boolean).join(' · ')
+    $('#tRewardsSub').textContent = n ? [chests ? plural(chests, 'chest') : '', spins ? plural(spins, 'spin') : '', claim ? claim + ' to claim' : '', quiz ? 'quiz' : '', garden.full ? 'garden full' : ''].filter(Boolean).join(' · ')
       : 'Quests ' + qDone + '/3 · free spin in ' + untilTomorrow();
     $('#tFoot').textContent = WORLDS.length + ' worlds · ' + LEVELS.length + ' levels';
     const goal = Shop.nextGoal(prog, LEVELS);
@@ -1065,7 +1066,7 @@
 
   /* ================= rewards hub: quests, wheel, chests, achievements, stats ================= */
   let rwTab = 'quests', wheelRot = 0, spinning = false;
-  const RW_TABS = { quests: 'Quests', wheel: 'Wheel', chests: 'Chests', ach: 'Achievements', stats: 'Stats' };
+  const RW_TABS = { quests: 'Quests', quiz: 'Quiz', wheel: 'Wheel', garden: 'Garden', chests: 'Chests', ach: 'Achievements', stats: 'Stats' };
   const BAND = ['EASY', 'MEDIUM', 'HARD'];
   const chestChip = (t) => '<span class="chest-chip" style="--cc:' + R.CHESTS[t].color + '">' + chestSVG(t) + R.CHESTS[t].name + '</span>';
   function renderRewards() {
@@ -1073,10 +1074,11 @@
     const badge = {
       quests: prog.quests.list.filter((q) => !q.claimed && q.n >= R.qById(q.id).goal).length, wheel: R.spinsAvailable(prog, day),
       chests: prog.chestQueue.length, ach: R.ACH.filter((a) => R.achState(prog, LEVELS, a).claimable).length, stats: 0,
+      quiz: X.quizState(prog, day).done ? 0 : X.QUIZ.perDay - X.quizState(prog, day).k, garden: X.gardenState(prog, LEVELS, Date.now()).full ? 1 : 0,
     };
     $('#rwTabs').innerHTML = Object.keys(RW_TABS).map((k) => '<button class="tab" role="tab" data-tab="' + k + '" aria-selected="' + (k === rwTab) + '">' + RW_TABS[k] + (badge[k] ? '<span class="tbadge">' + badge[k] + '</span>' : '') + '</button>').join('');
-    $$('#rwTabs .tab').forEach((b) => (b.onclick = () => { if (spinning) return; rwTab = b.dataset.tab; SFX.click(); renderRewards(); }));
-    ({ quests: rwQuests, wheel: rwWheel, chests: rwChests, ach: rwAch, stats: rwStats })[rwTab](day);
+    $$('#rwTabs .tab').forEach((b) => (b.onclick = () => { if (spinning) return; rwTab = b.dataset.tab; quizView = null; SFX.click(); renderRewards(); }));
+    ({ quests: rwQuests, quiz: rwQuiz, wheel: rwWheel, garden: rwGarden, chests: rwChests, ach: rwAch, stats: rwStats })[rwTab](day);
     coins();
   }
   function rwQuests(day) {
@@ -1186,6 +1188,14 @@
       persist(); SFX.win(); confetti(); toast('+' + r.coins.toLocaleString('en-US') + ' coins and a ' + R.CHESTS[r.chest].name + (r.spin ? ' and a wheel spin' : '') + '!'); renderRewards();
     }));
   }
+  function extraEarnings(day) {
+    const qs = X.quizState(prog, day), gs = X.gardenState(prog, LEVELS, Date.now()), cs = X.calendarState(prog, day);
+    return [
+      { id: 'quiz', ok: !qs.done, text: qs.done ? 'Echo Quiz done; new puzzles tomorrow.' : 'Echo Quiz: ' + (X.QUIZ.perDay - qs.k) + ' puzzle(s) left, up to ' + (X.QUIZ.pay.slice(qs.k).reduce((a, b) => a + b, 0) + X.QUIZ.perfect) + ' coins.' },
+      { id: 'garden', ok: gs.stored > 0, text: 'Echo Garden: ' + gs.stored + ' coins ready (' + gs.rate + '/hour).' },
+      { id: 'calendar', ok: cs.ready, text: cs.ready ? 'Daily gift ready (day ' + (cs.step + 1) + ' of 7).' : 'Next daily gift tomorrow.' },
+    ];
+  }
   function rwStats(day) {
     const st = prog.stats, sv = (k) => Shop.statValue(prog, LEVELS, k);
     const cleared = LEVELS.filter((l) => prog.levels[l.id] && prog.levels[l.id].clears).length;
@@ -1193,17 +1203,130 @@
     const own = (slot) => { const all = Shop.CATALOG.filter((c) => c.slot === slot && !c.default); return all.filter((c) => Shop.owns(prog, LEVELS, c)).length + ' / ' + all.length; };
     const rows = [['Stars', sv('stars') + ' / ' + LEVELS.length * 3], ['Levels cleared', cleared + ' / ' + LEVELS.length], ['Levels at par', sv('perfect')], ['Worlds cleared', sv('worlds') + ' / ' + WORLDS.length],
       ['Clover', prog.luck + ' / 100'], ['Echo steps', st.echoSteps], ['Echo bumps', st.echoBumps], ['Echo care', gentlePct], ['Gentle clears', st.gentle], ['Moves made', st.moves], ['Favours used', st.favours],
-      ['Chests opened', st.chests], ['Wheel spins', st.spins], ['Jackpots', st.jackpots], ['Coins earned', st.coinsEarned], ['Best daily streak', sv('streak')], ['Achievement tiers', sv('achievements')],
+      ['Chests opened', st.chests], ['Wheel spins', st.spins], ['Quiz answers right', st.quiz || 0], ['Garden coins', st.garden || 0], ['Jackpots', st.jackpots], ['Coins earned', st.coinsEarned], ['Best daily streak', sv('streak')], ['Achievement tiers', sv('achievements')],
       ['Characters', own('face')], ['Orbs', own('orb')], ['Trails', own('trail')], ['Portals', own('portal')]];
-    const GO = { campaign: 'Play', daily: 'Play', wheel: 'Spin', quests: 'Open', chests: 'Open', ach: 'Open', replay: 'Map' };
+    const GO = { campaign: 'Play', daily: 'Play', wheel: 'Spin', quests: 'Open', chests: 'Open', ach: 'Open', replay: 'Map', quiz: 'Play', garden: 'Collect', calendar: 'Open' };
     $('#rwBody').innerHTML = '<div class="rw-grid"><div class="card"><h3>Ways to earn coins right now</h3><div class="earn-list">' +
-      R.earnings(prog, LEVELS, day).map((e) => '<div class="earn' + (e.ok ? ' ok' : '') + '"><i>' + (e.ok ? '●' : '○') + '</i><span>' + esc(e.text) + '</span>' + (e.ok ? '<button class="plan-btn" data-earn="' + e.id + '">' + GO[e.id] + '</button>' : '') + '</div>').join('') + '</div></div>' +
+      R.earnings(prog, LEVELS, day).concat(extraEarnings(day)).map((e) => '<div class="earn' + (e.ok ? ' ok' : '') + '"><i>' + (e.ok ? '●' : '○') + '</i><span>' + esc(e.text) + '</span>' + (e.ok ? '<button class="plan-btn" data-earn="' + e.id + '">' + GO[e.id] + '</button>' : '') + '</div>').join('') + '</div></div>' +
       '<div class="card"><h3>Your stats</h3><div class="stat-grid">' + rows.map((r) => '<div class="stat"><span>' + r[0].toUpperCase() + '</span><b>' + (typeof r[1] === 'number' ? r[1].toLocaleString('en-US') : r[1]) + '</b></div>').join('') + '</div></div></div>';
     $$('#rwBody [data-earn]').forEach((b) => (b.onclick = () => {
       SFX.click(); const k = b.dataset.earn;
       if (k === 'campaign') startLevel(P.nextLevelIndex(prog, LEVELS)); else if (k === 'daily') playDaily(); else if (k === 'replay') { mapSel = null; mapWorld = null; show('map'); }
-      else { rwTab = { wheel: 'wheel', quests: 'quests', chests: 'chests', ach: 'ach' }[k]; renderRewards(); }
+      else if (k === 'calendar') calendar(true);
+      else { rwTab = { wheel: 'wheel', quests: 'quests', chests: 'chests', ach: 'ach', quiz: 'quiz', garden: 'garden' }[k]; renderRewards(); }
     }));
+  }
+
+  /* ---------- Echo Quiz: predict where the echo ends up ---------- */
+  let quizView = null; // { q, picked, res } while showing an answered question
+  function rwQuiz(day) {
+    const st = X.quizState(prog, day), dots = Array.from({ length: X.QUIZ.perDay }, (_, i) => '<i class="' + (i < st.hist.length ? (st.hist[i] ? 'ok' : 'no') : i === st.k ? 'cur' : '') + '"></i>').join('');
+    const head = '<div class="rw-head"><b>Echo Quiz</b><small>Five puzzles a day: read your moves, then tap where the echo ends up. Harder questions pay more.</small><div class="qdots">' + dots + '</div></div>';
+    if (st.done && !quizView) {
+      $('#rwBody').innerHTML = head + '<div class="card quiz-done"><h3>' + st.right + ' / ' + X.QUIZ.perDay + ' correct today</h3><p>' + (st.right === X.QUIZ.perDay ? 'Perfect! You earned the bonus ' + X.QUIZ.perfect + ' coins and a Bronze chest.' : 'Get all five right for a ' + X.QUIZ.perfect + '-coin bonus and a Bronze chest.') + '</p><p class="dim">New puzzles in ' + untilTomorrow() + '.</p></div>';
+      return;
+    }
+    const q = quizView ? quizView.q : X.quizQuestion(day, st.k);
+    const name = q.kind === 'F' ? 'Flicker' : 'Echo', H = q.map.length, W = q.map[0].length;
+    let cells = '';
+    for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+      const c = q.map[y][x], oi = q.options.findIndex((o) => o.x === x && o.y === y);
+      let inner = c === 'P' ? orbHTML(prog.equip.orb) : c === 'X' ? '<div class="qexit"></div>' : (c === 'T' || c === 'F') ? '<div class="qecho ' + (c === 'T' ? 'qt' : 'qf') + '"><span>' + c.replace('T', 'E') + '</span></div>' : '';
+      let cls = 'qc' + (c === '#' ? ' wall' : '') + ((x + y) % 2 ? ' alt' : '');
+      if (oi >= 0) {
+        cls += ' opt';
+        if (quizView) cls += oi === q.answer ? ' right' : oi === quizView.picked ? ' wrong' : ' dimopt';
+        inner += '<button class="qopt" data-o="' + oi + '"' + (quizView ? ' disabled' : '') + '>' + 'ABCD'[oi] + '</button>';
+      }
+      cells += '<div class="' + cls + '" data-x="' + x + '" data-y="' + y + '">' + inner + '</div>';
+    }
+    const strip = q.moves.map((d, i) => (i && i % q.B === 0 ? '<span class="qsep"></span>' : '') + '<span class="qm' + (i % q.B === 0 ? ' head' : '') + '">' + AR[d] + '</span>').join('');
+    $('#rwBody').innerHTML = head + '<div class="quiz-layout"><div class="quiz-board" style="--w:' + (W - 2) + '">' + cells + '<div class="qghost" id="qGhost" hidden></div></div>' +
+      '<div class="card quiz-side"><span class="coach-tag">QUESTION ' + (q.k + 1) + ' · PAYS ' + X.QUIZ.pay[q.k] + ' COINS</span>' +
+      '<p>You (the orb) make these ' + q.moves.length + ' moves. <b>' + name + '</b> copies the <b>first move of every ' + q.B + '</b>' + (q.k > 0 ? ' and stays put if a wall is in the way' : '') + '. Where does ' + name + ' end up?</p>' +
+      '<div class="qstrip">' + strip + '</div><small class="dim">Groups of ' + q.B + ' are separated; the first of each group is highlighted after you answer.</small>' +
+      '<div id="qResult"></div></div></div>';
+    $$('#rwBody .qopt').forEach((b) => (b.onclick = () => {
+      const pick = +b.dataset.o, res = X.quizAnswer(prog, day, pick); if (!res) return;
+      persist(); quizView = { q, picked: pick, res };
+      if (res.ok) { SFX.win(); buzz(30); } else SFX.echoBlocked();
+      rwQuiz(day); quizReplay(q, res);
+    }));
+    if (quizView) quizReplay(q, quizView.res, true);
+  }
+  function quizReplay(q, res, still) {
+    $('#rwBody .qstrip').classList.add('revealed');
+    const g = $('#qGhost'), board = $('#rwBody .quiz-board'), W = q.map[0].length - 2;
+    const place = (p) => { g.style.left = ((p.x - 1) / W) * 100 + '%'; g.style.top = ((p.y - 1) / (q.map.length - 2)) * 100 + '%'; };
+    g.hidden = false; g.style.width = 100 / W + '%'; g.style.height = 100 / (q.map.length - 2) + '%';
+    const name = q.kind === 'F' ? 'Flicker' : 'Echo', st = X.quizState(prog, today());
+    const heads = q.heads.map((d) => AR[d]).join(' ');
+    $('#qResult').innerHTML = '<div class="q-res ' + (res.ok ? 'ok' : 'no') + '"><b>' + (res.ok ? 'Correct! +' + res.coins + ' coins' : 'Not quite.') + '</b>' +
+      '<span>' + name + ' only copied the first move of each group: ' + (heads || 'none (no group was complete)') + '. It ends on <b>' + 'ABCD'[q.answer] + '</b>.</span>' +
+      (res.perfect ? '<span class="gold-t">Perfect day! +' + X.QUIZ.perfect + ' bonus coins and a Bronze chest.</span>' : '') +
+      '<div class="row">' + (st.done ? '<button class="btn gold" id="qDone">See results</button>' : '<button class="btn gold" id="qNext">Next question</button>') + '</div></div>';
+    on('qNext', () => { quizView = null; renderRewards(); });
+    on('qDone', () => { quizView = null; renderRewards(); });
+    coins();
+    if (still || reduced()) { place(q.trace[q.trace.length - 1]); return; }
+    let i = 0; place(q.trace[0]);
+    const tick = () => { if (!g.isConnected) return; i++; if (i >= q.trace.length) return; place(q.trace[i]); const m = $$('#rwBody .qm')[i - 1]; if (m) { m.classList.add('now'); setTimeout(() => m.classList.remove('now'), 300); } SFX.tape(i % 5); setTimeout(tick, 320); };
+    setTimeout(tick, 400);
+  }
+
+  /* ---------- Echo Garden: your collection earns coins while you are away ---------- */
+  function rwGarden() {
+    const now = Date.now(), gs = X.gardenState(prog, LEVELS, now), RANK = { legendary: 0, epic: 1, rare: 2, common: 3 };
+    const chars = Shop.CATALOG.filter((c) => c.slot === 'face' && c.char && Shop.owns(prog, LEVELS, c)).sort((a, b) => RANK[a.rarity] - RANK[b.rarity]).slice(0, 10);
+    const owned = Shop.CATALOG.filter((c) => c.slot !== 'boost' && !c.default && Shop.owns(prog, LEVELS, c));
+    const count = (r) => owned.filter((c) => c.rarity === r).length;
+    const hrs = Math.floor(gs.fullIn / 3600000), mins = Math.floor((gs.fullIn % 3600000) / 60000);
+    $('#rwBody').innerHTML = '<div class="rw-head"><b>Echo Garden</b><small>Everything you own lives here and earns coins while you are away. The garden holds up to ' + X.GARDEN.capHours + ' hours of coins, so check in twice a day.</small></div>' +
+      '<div class="garden"><div class="g-sky"></div>' + (chars.length ? chars.map((c, i) => '<div class="g-char r-' + c.rarity + '" style="left:' + (6 + ((i * 37) % 86)) + '%;bottom:' + (8 + (i % 3) * 13) + '%;animation-delay:' + -i * 0.7 + 's"><span class="charbox">' + Chars.render(c.char) + '</span></div>').join('')
+        : '<div class="g-empty">Your garden is empty. Characters you collect will hang out here.</div>') +
+      Array.from({ length: Math.min(12, Math.floor(gs.stored / Math.max(1, gs.cap / 12))) }, (_, i) => '<i class="g-coin" style="left:' + (5 + ((i * 53) % 90)) + '%;animation-delay:' + i * 0.23 + 's"></i>').join('') + '</div>' +
+      '<div class="rw-grid"><div class="card"><h3>' + gs.stored.toLocaleString('en-US') + ' coins ready</h3><div class="bar2"><i style="width:' + Math.round((gs.hours / X.GARDEN.capHours) * 100) + '%"></i></div>' +
+      '<small class="dim">' + (gs.full ? 'The garden is full! Collect so it keeps growing.' : 'Full in ' + hrs + 'h ' + mins + 'm (' + gs.cap.toLocaleString('en-US') + ' coins).') + '</small>' +
+      '<button class="btn gold big" id="gCollect"' + (gs.stored < 1 ? ' disabled' : '') + '><i class="coin-ico"></i>Collect ' + gs.stored.toLocaleString('en-US') + '</button></div>' +
+      '<div class="card"><h3>' + gs.rate + ' coins per hour</h3><table class="chest-table"><tr><th>Source</th><th>Each</th><th>You own</th></tr>' +
+      '<tr><td>Garden base</td><td>' + X.GARDEN.base + '/h</td><td>—</td></tr>' +
+      ['common', 'rare', 'epic', 'legendary'].map((r) => '<tr><td style="color:' + Chars.RARITY[r].color + '">' + Chars.RARITY[r].label + ' item</td><td>+' + X.GARDEN.rate[r] + '/h</td><td>' + count(r) + '</td></tr>').join('') +
+      '</table><small class="dim">Characters earn ' + X.GARDEN.faceMul + '× because they live in the garden. Legendary items earn the most: +' + X.GARDEN.rate.legendary * X.GARDEN.faceMul + '/h for a legendary character, forever.</small></div></div>';
+    on('gCollect', () => {
+      const n = X.gardenCollect(prog, LEVELS, Date.now()); if (!n) return;
+      persist(); SFX.win(); buzz(30);
+      $$('#rwBody .g-coin').forEach((c) => flyCoinFrom(c));
+      toast('+' + n.toLocaleString('en-US') + ' coins from your garden.'); setTimeout(renderRewards, reduced() ? 0 : 700);
+    });
+  }
+  function flyCoinFrom(src) {
+    if (reduced()) return;
+    const r = src.getBoundingClientRect(), t = $('#rewards .pill').getBoundingClientRect(), el = document.createElement('div');
+    el.className = 'fx-coin'; el.style.left = r.left + 'px'; el.style.top = r.top + 'px'; $('#fx').appendChild(el);
+    const a = anim(el, [{ transform: 'translate(0,0)' }, { transform: 'translate(' + (t.left - r.left) + 'px,' + (t.top - r.top) + 'px) scale(.6)' }], { duration: 600, easing: 'ease-in' });
+    if (a) a.onfinish = () => el.remove(); else el.remove();
+  }
+
+  /* ---------- 7-day login calendar ---------- */
+  const giftText = (g) => (g.coins ? g.coins + ' coins' : g.boost ? g.n + ' ' + BOOST_NAME[g.boost][g.n > 1 ? 1 : 0] : R.CHESTS[g.chest].name);
+  const giftIcon = (g) => (g.coins ? '<i class="coin-ico"></i>' : g.boost ? '<svg><use href="#' + BOOST_NAME[g.boost][2] + '"/></svg>' : chestSVG(g.chest));
+  function calendar(force) {
+    const day = today(), cs = X.calendarState(prog, day);
+    if (!cs.ready && !force) return false;
+    openModal('<div class="kicker">DAILY GIFT · CYCLE ' + (cs.cycle + 1) + '</div><h2>' + (cs.ready ? 'Day ' + (cs.step + 1) + ' gift!' : 'Gift claimed for today') + '</h2>' +
+      '<div class="cal">' + X.CALENDAR.map((g, i) => '<div class="cal-d' + (i < cs.step || (!cs.ready && i === cs.step - 1) ? ' got' : '') + (cs.ready && i === cs.step ? ' today' : '') + (i === 6 ? ' big' : '') + '"' + (g.chest ? ' style="--cc:' + R.CHESTS[g.chest].color + '"' : '') + '><small>DAY ' + (i + 1) + '</small>' + giftIcon(g) + '<b>' + giftText(g) + '</b></div>').join('') + '</div>' +
+      '<p class="small dim">Come back every day for the next gift. Missing a day never resets your progress; the cycle repeats after day 7.</p>' +
+      '<div class="row">' + (cs.ready ? '<button class="btn gold big" id="calClaim">Claim</button>' : '<button class="btn gold big" id="calOk">Nice</button>') + '</div>', () => {
+      on('calOk', closeModal);
+      on('calClaim', () => {
+        const r = X.calendarClaim(prog, day); if (!r) return;
+        persist(); SFX.win(); buzz([30, 30, 60]); confetti(); coins();
+        toast('Day ' + r.day + ': ' + giftText(r.gift) + '!');
+        closeModal(); renderTitle();
+        if (r.gift.chest) revealChests(renderTitle);
+      });
+    });
+    return true;
   }
 
   /* ---------- stuck detection (exhaustive search via the engine) ---------- */
@@ -1541,7 +1664,7 @@
       '<li><b style="color:var(--mint)">Clover</b> is luck you keep between levels: echo steps fill it, bumping echoes into walls drains it. When it is full, use a free Favour in any level.</li>' +
       '<li>Stuck? The game checks every possible line and tells you when a level can no longer be won.</li></ul>' +
       '<p class="keys"><kbd>←↑↓→</kbd>/<kbd>WASD</kbd> or swipe · <kbd>Z</kbd> undo · <kbd>R</kbd> restart · <kbd>F</kbd> favour · <kbd>H</kbd> hop · <kbd>O</kbd> oracle · <kbd>Esc</kbd> pause</p>' +
-      '<div class="row">' + back + '</div>', () => on('hOk', () => { prog.introDone = true; persist(); closeModal(); }));
+      '<div class="row">' + back + '</div>', () => on('hOk', () => { const first = !prog.introDone; prog.introDone = true; persist(); closeModal(); if (first && screen === 'title') calendar(); }));
   }
   function settings(confirmReset) {
     openModal('<h2>Settings</h2>' +
@@ -1629,7 +1752,7 @@
   Amb.init();
   applySettings();
   show('title');
-  if (!prog.introDone) help();
+  if (!prog.introDone) help(); else calendar();
   // test hook for automated play-throughs
   window.__am = { state: () => G && G.S, level: () => G && G.L, start: startLevel, show };
 })();

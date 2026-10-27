@@ -294,4 +294,39 @@ t('Levels are numbered 1..N in order and grouped into worlds of 10', () => {
   LEVELS.forEach((d, i) => { assert.strictEqual(d.id, i + 1); assert.strictEqual(d.world, Math.ceil(d.id / 10)); });
   assert.ok(LEVELS.length >= 60); assert.strictEqual(LEVELS.WORLDS.length, Math.ceil(LEVELS.length / 10));
 });
+const X = require('../js/extras.js');
+t('Echo Quiz: engine-checked answers, 4 distinct options, pays only when right, perfect bonus', () => {
+  for (let d = 1; d <= 30; d++) for (let k = 0; k < 5; k++) {
+    const day = '2026-12-' + String(d).padStart(2, '0'), q = X.quizQuestion(day, k);
+    assert.ok(q, 'question generated');
+    const keys = new Set(q.options.map((o) => o.x + ',' + o.y)); assert.strictEqual(keys.size, 4);
+    // replay through the engine independently
+    let { level: L, state: S } = AM.loadLevel({ id: 0, map: q.map });
+    for (const m of q.moves) { const r = AM.step(L, S, m); assert.ok(r.accepted); S = r.state; }
+    const a = q.options[q.answer]; assert.deepStrictEqual([S.echoes[0].x, S.echoes[0].y], [a.x, a.y]);
+  }
+  const prog = R.init(P.defaults()), day = '2026-12-01';
+  for (let k = 0; k < 5; k++) X.quizAnswer(prog, day, X.quizQuestion(day, k).answer);
+  assert.strictEqual(prog.coins, X.QUIZ.pay.reduce((a, b) => a + b, 0) + X.QUIZ.perfect);
+  assert.strictEqual(prog.chestQueue.length, 1); assert.strictEqual(X.quizAnswer(prog, day, 0), null, 'done for the day');
+  const p2 = R.init(P.defaults()); const q0 = X.quizQuestion(day, 0);
+  X.quizAnswer(p2, day, (q0.answer + 1) % 4); assert.strictEqual(p2.coins, 0);
+});
+t('Echo Garden: rate grows with rarity, storage caps at 10 hours, collect resets', () => {
+  const prog = R.init(P.defaults()), t0 = 1e12;
+  assert.strictEqual(X.gardenState(prog, LEVELS, t0).stored, 0);
+  const base = X.gardenRate(prog, LEVELS);
+  prog.owned.neonking = true; assert.ok(X.gardenRate(prog, LEVELS) >= base + 12);
+  const st = X.gardenState(prog, LEVELS, t0 + 50 * 3600000); assert.ok(st.full); assert.strictEqual(st.stored, Math.floor(X.gardenRate(prog, LEVELS) * 10));
+  const n = X.gardenCollect(prog, LEVELS, t0 + 50 * 3600000); assert.strictEqual(prog.coins, n);
+  assert.strictEqual(X.gardenCollect(prog, LEVELS, t0 + 50 * 3600000), 0);
+});
+t('Login calendar: one gift per day, 7-day cycle, never resets', () => {
+  const prog = R.init(P.defaults());
+  assert.ok(X.calendarClaim(prog, '2026-12-01')); assert.strictEqual(X.calendarClaim(prog, '2026-12-01'), null);
+  assert.strictEqual(prog.coins, 50);
+  ['2026-12-05', '2026-12-09', '2026-12-10', '2026-12-11', '2026-12-12', '2026-12-13'].forEach((d) => X.calendarClaim(prog, d));
+  assert.strictEqual(X.calendarState(prog, '2026-12-14').step, 0, 'cycle repeats after day 7');
+  assert.ok(prog.chestQueue.some((c) => c.tier === 'gold'));
+});
 console.log(`\n${pass} passed`);
