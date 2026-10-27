@@ -913,9 +913,10 @@ body[data-aura=aurora] .board-frame{box-shadow:inset 0 4px 0 var(--wallHi),inset
 .qdots i.ok{background:var(--mint)}.qdots i.no{background:var(--pink)}.qdots i.cur{box-shadow:0 0 0 2px var(--gold);animation:textPulse 1.2s infinite}
 .quiz-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,380px);gap:18px;align-items:start}
 @media (max-width:820px){.quiz-layout{grid-template-columns:1fr}}
-.quiz-board{position:relative;display:grid;grid-template-columns:repeat(var(--w),1fr);border-radius:18px;overflow:hidden;box-shadow:0 0 0 4px var(--wall),0 14px 30px #0008;width:min(100%,560px);margin:0 auto}
+.quiz-board{--cell:min(64px,calc((100vw - 64px) / var(--w)));position:relative;display:grid;grid-template-columns:repeat(var(--w),var(--cell));grid-auto-rows:var(--cell);border-radius:18px;overflow:hidden;box-shadow:0 0 0 4px var(--wall),0 14px 30px #0008;width:max-content;margin:4px auto}
+/* cells are sized in plain lengths so the board can never collapse to zero height */
 .qc{position:relative;background:var(--floor)}
-.qc::before{content:'';display:block;padding-top:100%} /* square cells without aspect-ratio (older Safari/Firefox ignore it on grid items) */.qc.alt{background:var(--floor2)}
+.qc.alt{background:var(--floor2)}
 .qc.wall{background:var(--wall);box-shadow:inset 0 4px 0 var(--wallHi),inset 0 -6px 0 var(--wallLo)}
 .qc .orb{inset:20%}
 .qecho{position:absolute;inset:16%;border-radius:50%;border:4px dashed var(--gold);display:flex;align-items:center;justify-content:center;font:600 clamp(14px,2.6vw,24px) var(--disp);color:var(--gold);background:#ffc24b18;animation:spin 8s linear infinite}
@@ -996,7 +997,7 @@ body[data-aura=aurora] .board-frame{box-shadow:inset 0 4px 0 var(--wallHi),inset
 .qpiece#qE{z-index:2}
 #qE.act .qecho{animation:dAct .5s var(--ease-pop)}
 .qopt{position:absolute;inset:5%;border-radius:12px;border:3px dashed var(--gold);background:#ffc24b14;cursor:pointer;z-index:1;padding:0;font:inherit;transition:background .15s,transform .15s}
-.qopt b{position:absolute;top:3px;left:3px;width:clamp(22px,4.5vw,30px);height:clamp(22px,4.5vw,30px);border-radius:50%;background:var(--gold);color:#2a1a00;font:700 clamp(13px,2.6vw,17px)/1 var(--disp);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 0 #8a5c00}
+.qopt b{position:absolute;right:2px;bottom:2px;width:clamp(17px,3.6vw,24px);height:clamp(17px,3.6vw,24px);z-index:4;border-radius:50%;background:var(--gold);color:#2a1a00;font:700 clamp(11px,2.2vw,14px)/1 var(--disp);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 0 #8a5c00}
 .qopt:hover:not(:disabled){background:#ffc24b40;transform:scale(1.04)}
 .qc.right .qopt{border-style:solid;border-color:var(--mint);background:#6dffb330}.qc.right .qopt b{background:var(--mint);box-shadow:0 3px 0 #1a7a52}
 .qc.wrong .qopt{border-style:solid;border-color:var(--pink);background:#ff5c8a30}.qc.wrong .qopt b{background:var(--pink);color:#fff;box-shadow:0 3px 0 #7a0f3a}
@@ -1052,3 +1053,9 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:20px
 .keys-sheet kbd{margin-left:3px}
 @media (hover:none),(pointer:coarse){kbd{display:none!important}}
 @media (max-width:640px){.game-bar .icon-btn{width:40px;height:40px;border-radius:13px}.game-bar{gap:8px}.game-bar .bar-title b{font-size:20px}.game-bar .pill{font-size:15px;padding:4px 10px 4px 4px}}
+
+.qpick{display:flex;gap:8px;flex-wrap:wrap}
+.qpick button{min-width:52px;min-height:44px;border:0;border-radius:12px;background:#ffc24b22;box-shadow:inset 0 0 0 2px var(--gold);color:var(--gold);font:600 18px var(--disp);cursor:pointer}
+.qpick button:hover:not(:disabled){background:#ffc24b44}
+.qpick button:disabled{opacity:.45;cursor:default}
+.qpick button.right{background:var(--mint);color:#062b1a;box-shadow:none;opacity:1}.qpick button.wrong{background:var(--pink);color:#fff;box-shadow:none;opacity:1}

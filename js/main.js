@@ -1334,8 +1334,10 @@
     $('#rwBody').innerHTML = head + '<div class="quiz-layout"><div class="quiz-board" style="--w:' + (W - 2) + ';--h:' + (H - 2) + '">' + cells + '<div class="qlayer">' + pieces + '</div></div>' +
       '<div class="card quiz-side"><span class="coach-tag">QUESTION ' + (q.k + 1) + ' OF ' + X.QUIZ.perDay + ' · PAYS ' + X.QUIZ.pay[q.k] + ' COINS</span>' +
       '<p class="q-ask">You (the orb) make these ' + q.moves.length + ' moves. <b>' + name + '</b> (the dashed ring) copies only the <b>first move of each group of ' + q.B + '</b>' + (q.k > 0 ? ', and stays put if a wall is in the way' : '') + '.</p>' +
-      groupChips(q) + '<p class="q-ask"><b>Where does ' + name + ' end up?</b> Tap A, B, C or D on the board (or press the letter).</p>' +
+      groupChips(q) + '<p class="q-ask"><b>Where does ' + name + ' end up?</b> The four gold boxes on the board, marked A to D, are the possible answers. Tap one, use these buttons, or press the letter.</p>' +
+      '<div class="qpick">' + 'ABCD'.split('').map((l, i) => '<button data-qp="' + i + '"' + (quizView ? ' disabled' : '') + (quizView && i === q.answer ? ' class="right"' : quizView && i === quizView.picked ? ' class="wrong"' : '') + '>' + l + '</button>').join('') + '</div>' +
       '<div id="qResult"></div></div></div>';
+    $$('#rwBody [data-qp]').forEach((b) => (b.onclick = () => { const o = $('#rwBody .qopt[data-o="' + b.dataset.qp + '"]'); if (o) o.click(); }));
     $$('#rwBody .qopt').forEach((b) => (b.onclick = () => {
       if (quizView) return;
       const pick = +b.dataset.o, res = X.quizAnswer(prog, day, pick); if (!res) return;
