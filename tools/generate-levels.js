@@ -24,9 +24,10 @@ function scatter(rng, g, n, x0, x1) { for (let i = 0; i < n; i++) { const c = ce
 
 /* A portal powered by two plates at once: one helper cannot hold both, so the level needs two
    different holders working together (two echoes, an echo and a crate, a helper and a block). */
+const HARD = +process.env.HARD || 0, MINPAR = +process.env.MINPAR || 8, CAP = HARD ? 900000 : 400000, MS = HARD ? 12000 : 6000;
 function dualLock(rng, holders, extra) {
-  const W = 10 + Math.floor(rng() * 4), H = 6 + Math.floor(rng() * 3), g = blank(W, H);
-  scatter(rng, g, 3 + Math.floor(rng() * 6), 1, W - 2);
+  const W = 10 + HARD * 2 + Math.floor(rng() * 4), H = 6 + HARD + Math.floor(rng() * 3), g = blank(W, H);
+  scatter(rng, g, 3 + HARD * 4 + Math.floor(rng() * 6), 1, W - 2);
   put(g, cellIn(rng, g, Math.floor(W / 2), W - 2, 1, H - 2), 'X');
   put(g, cellIn(rng, g, 1, W - 2, 1, H - 2), 'a');
   put(g, cellIn(rng, g, 1, W - 2, 1, H - 2), 'b');
@@ -70,7 +71,7 @@ const RECIPES = {
   },
   // World 9, Quicksilver: Flicker hops into sealed pockets, coins for Favour, tight move limits
   9: (rng) => {
-    if (rng() < 0.5) {
+    if (rng() < (HARD ? 0.75 : 0.5)) {
       // plate a sealed in a pocket only a hop reaches, plate b for a crate (or Trace)
       const other = rng() < 0.6 ? 'o' : 'T';
       const g = dualLock(rng, ['F', other], (g2) => {
@@ -102,7 +103,7 @@ const RECIPES = {
   },
   // World 10, Workshop: Mason and Keeper hold plates for each other
   10: (rng) => {
-    if (rng() < 0.6) return { map: dualLock(rng, ['M', 'K']), mode: 'through', required: [], needs: ['M', 'K'], core: ['M', 'K'], exitLock: ['A', 'B'] };
+    if (rng() < (HARD ? 0.8 : 0.6)) return { map: dualLock(rng, ['M', 'K']), mode: 'through', required: [], needs: ['M', 'K'], core: ['M', 'K'], exitLock: ['A', 'B'] };
     const W = 11 + Math.floor(rng() * 3), H = 6 + Math.floor(rng() * 2), g = blank(W, H);
     const d1 = 4 + Math.floor(rng() * 3), d2 = W - 3, both = rng() < 0.85;
     divider(rng, g, d2, 'A'); if (both) divider(rng, g, d1, 'B');
@@ -119,7 +120,7 @@ const RECIPES = {
   },
   // World 11, Storm Front: the Blocker interferes while echoes and crates hold the doors
   11: (rng) => {
-    if (rng() < 0.5) {
+    if (rng() < (HARD ? 0.85 : 0.5)) {
       const pair = [['T', 'o'], ['M', 'K'], ['F', 'o'], ['T', 'M'], ['F', 'K']][Math.floor(rng() * 5)];
       const needs = pair.map((k) => (k === 'o' ? 'crate' : k));
       return { map: dualLock(rng, pair.concat('Z')), mode: 'through', required: [], needs, core: needs, exitLock: ['A', 'B'], enemy: true };
@@ -151,15 +152,15 @@ function candidate(world, rng) {
   if (r.coins) def.needs = def.needs.concat('favour');
   // time-boxed: anything the solver cannot settle quickly is skipped (it would be too slow to verify)
   let s;
-  try { s = solve(def, 400000, 6000); } catch (e) { return null; }
-  if (s.result !== 'win' || s.moves < 8) return null;
+  try { s = solve(def, CAP, MS); } catch (e) { return null; }
+  if (s.result !== 'win' || s.moves < MINPAR) return null;
   // keep the elements the level truly needs; the recipe's core ones (listed first in 'core') must be among them
-  const needed = def.needs.filter((n) => solve(ABLATE[n](def), 400000, 6000).result === 'stuck');
+  const needed = def.needs.filter((n) => solve(ABLATE[n](def), CAP, MS).result === 'stuck');
   if (!needed.length || (r.core || []).some((n) => !needed.includes(n))) return null;
   // every echo on the board should matter: an echo kind that is not needed makes the level confusing
   if (def.needs.filter((n) => /^[TFMK]$/.test(n)).some((n) => !needed.includes(n)) && !r.optionalEchoes) return null;
   def.needs = needed;
-  if (r.enemy) { const free = solve(Object.assign({}, def, { map: def.map.map((row) => row.replace('Z', '.')) }), 400000, 6000); if (free.result !== 'win' || free.moves >= s.moves) return null; }
+  if (r.enemy) { const free = solve(Object.assign({}, def, { map: def.map.map((row) => row.replace('Z', '.')) }), CAP, MS); if (free.result !== 'win' || free.moves >= s.moves) return null; }
   const label = (a) => (a.k === 'move' ? a.d[0] : a.k === 'favour' ? 'F!' : 'H(' + a.x + ',' + a.y + ')');
   def.par = s.moves; def.states = s.states; def.path = s.path.map(label).join('');
   return def;

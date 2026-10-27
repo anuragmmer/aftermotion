@@ -8,6 +8,13 @@
   const ROT = { UP: 0, RIGHT: 90, DOWN: 180, LEFT: 270 };
   const ARROW = (dir, cls) => '<svg class="' + (cls || '') + '" style="transform:rotate(' + ROT[dir] + 'deg)"><use href="#i-arrow"/></svg>';
   const STAR = '<svg><use href="#i-star"/></svg>';
+  /* One icon set everywhere: arrows are the same arrow icon rotated, never text glyphs. */
+  const ICO = (name, cls) => '<svg class="ic' + (cls ? ' ' + cls : '') + '" aria-hidden="true"><use href="#i-' + name + '"/></svg>';
+  const AI = (dir) => '<svg class="ic ia" aria-hidden="true" style="transform:rotate(' + ROT[dir] + 'deg)"><use href="#i-arrow"/></svg>';
+  const GLYPH_DIR = { '↑': 'UP', '→': 'RIGHT', '↓': 'DOWN', '←': 'LEFT' };
+  // turns arrow characters in level texts, captions and toasts into arrow icons (run after esc)
+  const iconize = (html) => String(html).replace(/[↑→↓←]/g, (c) => AI(GLYPH_DIR[c])).replace(/★/g, ICO('star', 'is')).replace(/✦/g, ICO('spark', 'is'));
+  const txt = (s) => iconize(esc(s));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const today = () => new Date().toISOString().slice(0, 10);
 
@@ -113,7 +120,7 @@
     const next = P.nextLevelIndex(prog, LEVELS);
     $('#tContinueLabel').textContent = done === 0 ? 'Play' : done === LEVELS.length ? 'Replay · Level ' + LEVELS[next].id : 'Continue · Level ' + LEVELS[next].id;
     $('#tStarCount').textContent = P.totalStars(prog);
-    $('#tStars').textContent = P.totalStars(prog) + ' / ' + LEVELS.length * 3 + '★';
+    $('#tStars').innerHTML = P.totalStars(prog) + ' / ' + LEVELS.length * 3 + ICO('star', 'is');
     const seen = Object.keys(ECHO_INFO).filter((k) => prog.seen[k]).length;
     $('#tEchoes').textContent = seen + ' / ' + Object.keys(ECHO_INFO).length;
     // title: letters rise in one by one; two outlined echo copies trail behind. The first letter of
@@ -237,10 +244,10 @@
     const maxFirst = Math.round(base * 1.5) + Math.round(base * 1.5 * 0.1) + coinsIn * P.RULES.coinValue;
     $('#mapInfo').innerHTML =
       '<h3>Level ' + l.id + '</h3><div class="lvl-name">' + esc(l.name) + '</div>' +
-      '<div class="lesson-badge"><svg><use href="#i-bulb"/></svg><span>' + esc(l.lesson) + '</span></div>' +
+      '<div class="lesson-badge"><svg><use href="#i-bulb"/></svg><span>' + txt(l.lesson) + '</span></div>' +
       '<div class="stars-row">' + [1, 2, 3].map((k) => '<svg style="fill:' + (rec && k <= rec.stars ? 'var(--gold)' : 'transparent') + '"><use href="#i-star"/></svg>').join('') + '</div>' +
       '<div class="chips">' + levelChips(l).map((c) => '<span class="chip">' + esc(c) + '</span>').join('') + '</div>' +
-      '<p class="dim small" style="margin:0">' + esc(l.intro) + '</p>' +
+      '<p class="dim small" style="margin:0">' + txt(l.intro) + '</p>' +
       '<div class="small">Par <b>' + (l.par || '—') + '</b>' + (rec && rec.best !== null ? ' · Best <b>' + rec.best + '</b>' : '') + '</div>' +
       '<div class="small dim">' + (rec && rec.clears ? esc(P.nextReplayInfo(P.record(prog, l.id), Date.now())) : 'First clear pays up to ' + maxFirst + ' coins.') + '</div>' +
       (unlocked ? '' : '<p class="small lock-why"><svg><use href="#i-lock"/></svg>Clear level ' + LEVELS[i - 1].id + ' (or skip it with a Skip ticket from the Shop) to unlock this level.</p>') +
@@ -289,7 +296,7 @@
     buildBoard(); buildCards(); fit(true);
     const fresh = !cleared(def) && !(opts && opts.restart) && !daily;
     G.tut = TUTORIALS[def.id] && !cleared(def) ? { steps: TUTORIALS[def.id], i: 0 } : null;
-    G.coach = { h: '<span class="lesson-inline">Lesson: ' + esc(def.lesson) + '</span> ' + esc(def.intro), c: '' };
+    G.coach = { h: '<span class="lesson-inline">Lesson: ' + txt(def.lesson) + '</span> ' + txt(def.intro), c: '' };
     G.log = [{ h: opts && opts.restart ? 'Level restarted.' : 'Level started.', c: '' }];
     if (G.trial && !G.tut) announceTrial();
     render(true);
@@ -298,9 +305,9 @@
   function lessonCard() {
     const d = G.def;
     openModal('<div class="kicker">WORLD ' + d.world + ' · LEVEL ' + d.id + '</div><h2>' + esc(d.name) + '</h2>' +
-      '<div class="lesson-badge big"><svg><use href="#i-bulb"/></svg><span>' + esc(d.lesson) + '</span></div>' +
+      '<div class="lesson-badge big"><svg><use href="#i-bulb"/></svg><span>' + txt(d.lesson) + '</span></div>' +
       (DM.FIRST[d.id] ? '<div class="demo" id="lcDemo"></div>' : '') +
-      '<p class="lesson-text">' + esc(d.intro) + '</p><p class="plan" id="lcPlanText" hidden>' + esc(d.plan) + '</p>' +
+      '<p class="lesson-text">' + txt(d.intro) + '</p><p class="plan" id="lcPlanText" hidden>' + txt(d.plan) + '</p>' +
       '<div class="row"><button class="btn" id="lcPlan">Show plan</button><button class="btn gold big" id="lcGo"><svg><use href="#i-play"/></svg>Start</button></div>', () => {
       on('lcPlan', () => { const p = $('#lcPlanText'); p.hidden = !p.hidden; $('#lcPlan').textContent = p.hidden ? 'Show plan' : 'Hide plan'; });
       on('lcGo', () => { closeModal(); renderPanel(); });
@@ -309,9 +316,9 @@
   }
   function planSheet() {
     const d = G.def;
-    openModal('<div class="kicker">LEVEL ' + d.id + ' · PLAN</div><h2>' + esc(d.name) + '</h2><div class="lesson-badge"><svg><use href="#i-bulb"/></svg><span>' + esc(d.lesson) + '</span></div>' +
+    openModal('<div class="kicker">LEVEL ' + d.id + ' · PLAN</div><h2>' + esc(d.name) + '</h2><div class="lesson-badge"><svg><use href="#i-bulb"/></svg><span>' + txt(d.lesson) + '</span></div>' +
       (DM.FIRST[d.id] ? '<div class="demo" id="psDemo"></div>' : '') +
-      '<p class="plan">' + esc(d.plan) + '</p><div class="row"><button class="btn gold big" id="psOk">Back to the level</button></div>', () => { on('psOk', closeModal); if (DM.FIRST[d.id]) playDemo($('#psDemo'), DM.FIRST[d.id]); });
+      '<p class="plan">' + txt(d.plan) + '</p><div class="row"><button class="btn gold big" id="psOk">Back to the level</button></div>', () => { on('psOk', closeModal); if (DM.FIRST[d.id]) playDemo($('#psDemo'), DM.FIRST[d.id]); });
   }
 
   /* ---------- try-on: now and then a level lends you a cosmetic you don't own yet ---------- */
@@ -357,8 +364,8 @@
     else if (gate && !gate.met) buy = '<span class="to-gate"><svg><use href="#i-lock"/></svg>' + esc(gate.text) + ' (' + gate.have + '/' + gate.need + '), then ' + it.price.toLocaleString('en-US') + ' coins</span>';
     else buy = (price < it.price ? '<s>' + it.price.toLocaleString('en-US') + '</s>' : '') + '<button class="btn gold" id="toBuy"' + (prog.coins < price ? ' disabled' : '') + '><i class="coin-ico"></i>' + price.toLocaleString('en-US') + '</button>' +
       (prog.coins < price ? '<small class="to-need">' + (price - prog.coins).toLocaleString('en-US') + ' more coins</small>' : '');
-    el.innerHTML = '<span class="to-tag">' + (t.left > 0 ? '✦ TRY-ON · ' + plural(t.left, 'move') + ' left' : 'TRY-ON OVER · LIKED IT?') + '</span><div class="to-what">' + what + '</div><div class="to-buy">' + buy + '</div>' +
-      (price < it.price && !owned ? '<small class="to-deal">' + Math.round(TRY.discount * 100) + '% off until you leave this level</small>' : '') + (t.left > 0 ? '' : '<button class="to-x" id="toX" aria-label="Dismiss">✕</button>');
+    el.innerHTML = '<span class="to-tag">' + (t.left > 0 ? ICO('spark', 'is') + ' TRY-ON · ' + plural(t.left, 'move') + ' left' : 'TRY-ON OVER · LIKED IT?') + '</span><div class="to-what">' + what + '</div><div class="to-buy">' + buy + '</div>' +
+      (price < it.price && !owned ? '<small class="to-deal">' + Math.round(TRY.discount * 100) + '% off until you leave this level</small>' : '') + (t.left > 0 ? '' : '<button class="to-x" id="toX" aria-label="Dismiss">' + ICO('x') + '</button>');
     on('toX', () => { t.dismissed = true; renderTrial(); });
     on('toBuy', () => {
       const r = Shop.buy(prog, LEVELS, it.id, price);
@@ -370,14 +377,14 @@
   function announceTrial() {
     const t = G.trial; if (!t || t.left !== TRY.moves) return;
     const it = t.item;
-    say([{ h: '✦ Try-on! For your next ' + TRY.moves + ' moves you are using <b>' + esc(it.name) + '</b>, ' + (/^[aeiou]/i.test(Chars.RARITY[it.rarity].label) ? 'an ' : 'a ') + Chars.RARITY[it.rarity].label.toLowerCase() + ' ' + SLOT_NAME[it.slot] + (it.aura ? ' with its ' + esc(Shop.AURAS[it.aura].name) + ' aura' : '') + '. ' + (it.gate ? 'Legendary: it has to be earned.' : 'Like it? It is ' + Math.round(TRY.discount * 100) + '% off while you are in this level.'), c: 'gold' }]);
+    say([{ h: ICO('spark', 'is') + ' Try-on! For your next ' + TRY.moves + ' moves you are using <b>' + esc(it.name) + '</b>, ' + (/^[aeiou]/i.test(Chars.RARITY[it.rarity].label) ? 'an ' : 'a ') + Chars.RARITY[it.rarity].label.toLowerCase() + ' ' + SLOT_NAME[it.slot] + (it.aura ? ' with its ' + esc(Shop.AURAS[it.aura].name) + ' aura' : '') + '. ' + (it.gate ? 'Legendary: it has to be earned.' : 'Like it? It is ' + Math.round(TRY.discount * 100) + '% off while you are in this level.'), c: 'gold' }]);
   }
 
   /* ---------- demo clips: a looping mini board that shows a new mechanic in action ---------- */
   function playDemo(box, key) {
     const d = DM.DEMOS[key]; if (!box || !d) return;
     const H = d.map.length - 2, W = d.map[0].length - 2, toks = DM.tokens(d.moves);
-    box.innerHTML = '<div class="demo-head"><span class="coach-tag">▶ HOW IT WORKS</span><b>' + esc(d.title) + '</b></div>' +
+    box.innerHTML = '<div class="demo-head"><span class="coach-tag">' + ICO('play', 'is') + ' HOW IT WORKS</span><b>' + esc(d.title) + '</b></div>' +
       '<div class="demo-board" style="--w:' + W + ';--h:' + H + '"><div class="demo-tiles"></div><div class="demo-actors"></div><div class="demo-key"></div></div>' +
       '<div class="demo-tape"></div><p class="demo-cap"></p>';
     const tiles = box.querySelector('.demo-tiles'), actors = box.querySelector('.demo-actors'), keyEl = box.querySelector('.demo-key'), tapeEl = box.querySelector('.demo-tape'), cap = box.querySelector('.demo-cap');
@@ -422,17 +429,17 @@
       } else tapeEl.innerHTML = e ? '<small>Keeper: helper every 3 moves · ' + (e.counter) + '/3</small>' : '<small>Luck ' + S.luck + '/100</small>';
       if (d.luck0 !== undefined) tapeEl.innerHTML += '<small class="dluck">Luck ' + S.luck + '/100</small>';
     }
-    function caption(n) { if (d.caps[n] !== undefined) { cap.textContent = d.caps[n]; cap.classList.remove('pop'); void cap.offsetWidth; cap.classList.add('pop'); } }
+    function caption(n) { if (d.caps[n] !== undefined) { cap.innerHTML = txt(d.caps[n]); cap.classList.remove('pop'); void cap.offsetWidth; cap.classList.add('pop'); } }
     function tick() {
       if (!box.isConnected) return;
       if (i >= toks.length) { setTimeout(() => { if (box.isConnected) { reset(); setTimeout(tick, 1100); } }, 1700); return; }
       const tk = toks[i]; let r, label;
       if (tk === 'F') { r = AM.activateFavour(L, S); r.accepted = r.ok; label = 'F · Favour'; }
       else if (tk[0] === 'H') { const [x, y] = tk.slice(1, -1).split(',').map(Number); r = AM.hop(L, S, S.echoes[0].id, x, y); r.accepted = r.ok; label = 'H · Hop'; }
-      else { r = AM.step(L, S, { U: 'UP', R: 'RIGHT', D: 'DOWN', L: 'LEFT' }[tk]); label = AR[{ U: 'UP', R: 'RIGHT', D: 'DOWN', L: 'LEFT' }[tk]]; }
+      else { r = AM.step(L, S, { U: 'UP', R: 'RIGHT', D: 'DOWN', L: 'LEFT' }[tk]); label = AI({ U: 'UP', R: 'RIGHT', D: 'DOWN', L: 'LEFT' }[tk]); }
       if (r.accepted) S = r.state;
       i++;
-      keyEl.textContent = label; keyEl.classList.remove('press'); void keyEl.offsetWidth; keyEl.classList.add('press');
+      keyEl.innerHTML = label; keyEl.classList.remove('press'); void keyEl.offsetWidth; keyEl.classList.add('press');
       draw(); caption(i);
       if (r.events.some((e) => e.type === 'ECHO_MOVED' || e.type === 'BUILD' || e.type === 'HOP' || (e.type === 'HELPER' && /sends/.test(e.text)))) {
         const e0 = S.echoes[0], el = els.get('e' + (e0 && e0.id)); if (el) { el.classList.remove('act'); void el.offsetWidth; el.classList.add('act'); }
@@ -475,7 +482,7 @@
   // the move currently sitting in slot 1 of the first echo's tape
   const tutHead = () => { const e = G && G.S.echoes[0]; return e && e.batch[0] ? arrHtml(e.batch[0]) : 'move'; };
   const tutText = (st) => (typeof st.say === 'function' ? st.say() : st.say);
-  function arrHtml(d) { return '<span class="arr h">' + ({ UP: '↑', RIGHT: '→', DOWN: '↓', LEFT: '←' })[d] + '</span>'; }
+  function arrHtml(d) { return '<span class="arr h">' + AI(d) + '</span>'; }
   const tutStep = () => (G && G.tut ? G.tut.steps[G.tut.i] : null);
   function tutAdvance(events, meta) {
     const st = tutStep(); if (!st) return;
@@ -636,7 +643,7 @@
       el.style.setProperty('--c', ECHO_INFO[e.type].color);
       el.querySelector('.tl').style.transform = 'rotate(' + { RIGHT: 180, LEFT: 0, DOWN: 270, UP: 90 }[e.batch[0]] + 'deg)';
       el.querySelector('b').textContent = e.activeB - e.counter;
-      el.querySelector('i').textContent = blocked ? '✕' : '';
+      el.querySelector('i').innerHTML = blocked ? ICO('x') : '';
     }
     actor('player', 'playerA', '<div class="orb-bob">' + orbHTML(look('orb')) + '</div>', S.player.x, S.player.y, seen);
     // hint marker
@@ -691,7 +698,7 @@
     const par = L.par, stars = P.starsFor(S.moves, par), lim2 = par ? P.twoStarLimit(par) : 0;
     $('#gStars').innerHTML = [1, 2, 3].map((k) => '<svg class="' + (k <= stars ? 'lit' : '') + '"><use href="#i-star"/></svg>').join('');
     $('#gParFill').style.width = par ? Math.min(100, (S.moves / lim2) * 100) + '%' : '0';
-    $('#gStarHint').textContent = !par ? '' : S.moves <= par ? (par - S.moves) + ' moves left for ★★★' : S.moves <= lim2 ? (lim2 - S.moves) + ' moves left for ★★' : 'Finish for ★';
+    $('#gStarHint').innerHTML = !par ? '' : S.moves <= par ? (par - S.moves) + ' moves left for ' + ICO('star', 'is').repeat(3) : S.moves <= lim2 ? (lim2 - S.moves) + ' moves left for ' + ICO('star', 'is').repeat(2) : 'Finish for ' + ICO('star', 'is');
     $('#gMoves').textContent = S.moves;
     $('#gMovesOf').textContent = L.maxMoves ? ' / ' + L.maxMoves : par ? ' · par ' + par : '';
     $('.moves').classList.toggle('low', !!L.maxMoves && L.maxMoves - S.moves <= 3);
@@ -706,7 +713,7 @@
     if (L.maxMoves) g.push({ done: false, text: 'Finish within ' + L.maxMoves + ' moves (' + (L.maxMoves - S.moves) + ' left)' });
     const total = G.startCoins, got = total - S.coins.length;
     if (total) g.push({ done: got === total, text: 'Coins ' + got + ' / ' + total + ' (optional)' });
-    $('#goals').innerHTML = g.map((q) => '<div class="goal' + (q.done ? ' done' : '') + '"><i>' + (q.done ? '✓' : '') + '</i>' + esc(q.text) + '</div>').join('');
+    $('#goals').innerHTML = g.map((q) => '<div class="goal' + (q.done ? ' done' : '') + '"><i>' + (q.done ? ICO('check') : '') + '</i>' + esc(q.text) + '</div>').join('');
     // buttons
     const hasLuck = G.startCoins > 0 || L.luck0 > 0, cr = cloverReady();
     $('#btnFavour').hidden = !S.echoes.length || !(hasLuck || cr);
@@ -770,7 +777,7 @@
     }
   }
   /* ---------- coach: plain-language explanations of what happened and what comes next ---------- */
-  const AR = { UP: '↑', RIGHT: '→', DOWN: '↓', LEFT: '←' };
+  const AR = { UP: AI('UP'), RIGHT: AI('RIGHT'), DOWN: AI('DOWN'), LEFT: AI('LEFT') };
   const WORD = { UP: 'up', RIGHT: 'right', DOWN: 'down', LEFT: 'left' };
   const arr = (d, head) => '<span class="arr' + (head ? ' h' : '') + '">' + AR[d] + '</span>';
   const seq = (b) => b.map((d, i) => arr(d, i === 0)).join(' ');
@@ -1117,7 +1124,7 @@
       const tag = it.milestone ? (owned ? 'EARNED REWARD' : 'REWARD: ' + Shop.milestoneText(it).toUpperCase()) : it.default ? 'STARTER' : it.slot === 'boost' ? 'BOOST' : gate ? (owned ? 'LEGENDARY · YOURS' : gate.met ? 'LEGENDARY · UNLOCKED FOR SALE' : 'LEGENDARY · MILESTONE + COINS') : it.gen && it.gen.anim ? '✦ ANIMATED' : 'SHOP';
       return head + '<div class="item' + (it.rarity && shopTab !== 'boost' ? ' r-' + it.rarity : '') + (on ? ' equipped' : '') + (!owned && it.slot !== 'boost' && !it.price ? ' locked' : '') + '">' +
         (it.slot === 'boost' ? '<span class="owned-n">×' + prog.inv[it.boost] + '</span>' : '') + previewHTML(it) +
-        '<span class="tagline">' + esc(tag) + '</span><h4>' + esc(it.name) + '</h4>' +
+        '<span class="tagline">' + txt(tag) + '</span><h4>' + esc(it.name) + '</h4>' +
         (it.aura ? '<span class="aura-tag">AURA · ' + esc(Shop.AURAS[it.aura].name.toUpperCase()) + '</span>' : '') + '<p>' + esc(it.desc) + '</p>' +
         (it.aura ? '<button class="plan-btn" data-aurapv="' + it.aura + '">Preview aura</button>' : '') + btn + '</div>';
     }).join('');
@@ -1180,9 +1187,9 @@
         return '<div class="quest' + (q.claimed ? ' claimed' : done ? ' done' : '') + '"><span class="q-band b' + i + '">' + BAND[i] + '</span><div class="q-main"><b>' + esc(d.text) + '</b>' +
           '<div class="bar2"><i style="width:' + Math.round((q.n / d.goal) * 100) + '%"></i></div><small>' + q.n + ' / ' + d.goal + '</small></div>' +
           '<div class="q-rew"><span><i class="coin-ico"></i>' + d.reward.coins + '</span>' + (d.reward.chest ? chestChip(d.reward.chest) : '') + '</div>' +
-          (q.claimed ? '<button class="btn" disabled>Claimed ✓</button>' : done ? '<button class="btn gold" data-q="' + q.id + '">Claim</button>' : '<button class="btn" disabled>In progress</button>') + '</div>';
+          (q.claimed ? '<button class="btn" disabled>' + ICO('check') + 'Claimed</button>' : done ? '<button class="btn gold" data-q="' + q.id + '">Claim</button>' : '<button class="btn" disabled>In progress</button>') + '</div>';
       }).join('') +
-      '<div class="quest bonus' + (Q.bonus ? ' claimed' : '') + '"><span class="q-band b2">BONUS</span><div class="q-main"><b>Claim all three quests</b><small>' + (Q.bonus ? 'Earned today ✓' : Q.list.filter((q) => q.claimed).length + ' / 3 claimed') + '</small></div>' +
+      '<div class="quest bonus' + (Q.bonus ? ' claimed' : '') + '"><span class="q-band b2">BONUS</span><div class="q-main"><b>Claim all three quests</b><small>' + (Q.bonus ? 'Earned today' : Q.list.filter((q) => q.claimed).length + ' / 3 claimed') + '</small></div>' +
       '<div class="q-rew"><span><svg><use href="#i-wheel"/></svg>+1 spin</span>' + chestChip('bronze') + '</div></div>' +
       '<p class="rw-tip">Quest progress is counted when you <b>clear</b> a level, so undoing moves cannot fake it. ' + (allClaimed ? 'All done for today: come back in ' + untilTomorrow() + '.' : '') + '</p>';
     $$('#rwBody [data-q]').forEach((b) => (b.onclick = () => {
@@ -1303,7 +1310,7 @@
       ['Characters', own('face')], ['Orbs', own('orb')], ['Trails', own('trail')], ['Portals', own('portal')]];
     const GO = { campaign: 'Play', daily: 'Play', wheel: 'Spin', quests: 'Open', chests: 'Open', ach: 'Open', replay: 'Map', quiz: 'Play', garden: 'Collect', calendar: 'Open' };
     $('#rwBody').innerHTML = '<div class="rw-grid"><div class="card"><h3>Ways to earn coins right now</h3><div class="earn-list">' +
-      R.earnings(prog, LEVELS, day).concat(extraEarnings(day)).map((e) => '<div class="earn' + (e.ok ? ' ok' : '') + '"><i>' + (e.ok ? '●' : '○') + '</i><span>' + esc(e.text) + '</span>' + (e.ok ? '<button class="plan-btn" data-earn="' + e.id + '">' + GO[e.id] + '</button>' : '') + '</div>').join('') + '</div></div>' +
+      R.earnings(prog, LEVELS, day).concat(extraEarnings(day)).map((e) => '<div class="earn' + (e.ok ? ' ok' : '') + '"><i>' + ICO(e.ok ? 'check' : 'dot') + '</i><span>' + esc(e.text) + '</span>' + (e.ok ? '<button class="plan-btn" data-earn="' + e.id + '">' + GO[e.id] + '</button>' : '') + '</div>').join('') + '</div></div>' +
       '<div class="card"><h3>Your stats</h3><div class="stat-grid">' + rows.map((r) => '<div class="stat"><span>' + r[0].toUpperCase() + '</span><b>' + (typeof r[1] === 'number' ? r[1].toLocaleString('en-US') : r[1]) + '</b></div>').join('') + '</div></div></div>';
     $$('#rwBody [data-earn]').forEach((b) => (b.onclick = () => {
       SFX.click(); const k = b.dataset.earn;
@@ -1471,7 +1478,7 @@
   function markX(x, y) {
     if (reduced()) return;
     const el = document.createElement('div');
-    el.className = 'actor fx-x instant'; el.textContent = '✕';
+    el.className = 'actor fx-x instant'; el.innerHTML = ICO('x');
     el.style.transform = tr(x, y);
     actorsEl.appendChild(el);
     const a = anim(el, [{ opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1.2, offset: 0.3 }, { opacity: 0, scale: 1 }], { duration: 520 });
@@ -1626,7 +1633,7 @@
       '<div class="receipt">' + receipt.lines.map((r, i) => '<div class="r ' + r.tone + '" style="animation-delay:' + (0.5 + i * 0.12) + 's"><span>' + esc(r.label) + '</span><span>+' + r.value + '</span></div>').join('') +
       '<hr><div class="total"><span class="disp" style="font-size:22px">Total</span><b><i class="coin-ico"></i><span id="countUp">+0</span></b></div></div>' +
       (chestRow ? '<div class="kicker" style="margin-top:4px">' + (book.chests.length > 1 ? book.chests.length + ' CHESTS EARNED' : 'CHEST EARNED') + '</div>' + chestRow : '') + extras +
-      '<div class="note lesson"><svg><use href="#i-bulb"/></svg><span><b>You learned:</b> ' + esc(L.lesson || G.def.lesson) + '</span></div>' +
+      '<div class="note lesson"><svg><use href="#i-bulb"/></svg><span><b>You learned:</b> ' + txt(L.lesson || G.def.lesson) + '</span></div>' +
       unlocked.map((it) => '<div class="unlock-card"><svg style="color:var(--mint)"><use href="#i-star"/></svg><span><b>New unlock:</b> ' + esc(it.name) + ' (' + esc(it.slot === 'face' ? 'echo face' : it.slot) + '). Equip it in the Shop.</span></div>').join('') +
       (goal ? '<div class="note"><svg><use href="#i-bag"/></svg><span><b>Next unlock:</b> ' + esc(goal.text) + '</span></div>' : '') +
       '<div class="note"><svg><use href="#i-restart"/></svg><span>' + esc(receipt.next) + '</span></div>' +
@@ -1833,7 +1840,7 @@
   }
   function toast(msg) {
     $$('.toast').forEach((t) => t.remove());
-    const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg;
+    const el = document.createElement('div'); el.className = 'toast'; el.innerHTML = txt(msg);
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 2600);
   }
@@ -1846,10 +1853,10 @@
     openModal('<h2>Keyboard shortcuts</h2><div class="keys-sheet">' +
       sec('Everywhere', [['Back / home', K('Esc')], ['This list', K('?')], ['Main button in a pop-up', K('Enter')]]) +
       sec('Home screen', [['Play / continue', K('Enter')], ['Daily Echo', K('D')], ['Rewards', K('R')], ['Shop', K('S')], ['Levels', K('L')], ['Echoes', K('E')], ['How to play', K('I')], ['Settings', K('G')]]) +
-      sec('In a level', [['Move', K('←', '↑', '↓', '→') + ' or ' + K('W', 'A', 'S', 'D')], ['Undo', K('Z')], ['Restart', K('R')], ['Favour', K('F')], ['Hop', K('H')], ['Oracle', K('O')], ['Hint', K('I')], ['Plan', K('P')], ['Level map', K('M')], ['Pause', K('Esc')]]) +
+      sec('In a level', [['Move', K(AI('LEFT'), AI('UP'), AI('DOWN'), AI('RIGHT')) + ' or ' + K('W', 'A', 'S', 'D')], ['Undo', K('Z')], ['Restart', K('R')], ['Favour', K('F')], ['Hop', K('H')], ['Oracle', K('O')], ['Hint', K('I')], ['Plan', K('P')], ['Level map', K('M')], ['Pause', K('Esc')]]) +
       sec('Level complete', [['Next level', K('Enter') + ' or ' + K('N')], ['Replay', K('R')], ['Map', K('M')], ['Home', K('H')], ['Open chests', K('C')]]) +
-      sec('Levels map', [['Pick a level', K('←', '→', '↑', '↓')], ['Play it', K('Enter')], ['Previous / next world', K('Q', 'E')]]) +
-      sec('Shop & Rewards', [['Switch tab', K('1') + '–' + K('7') + ' or ' + K('←', '→')], ['Quiz: answer / next', K('A', 'B', 'C', 'D') + ' ' + K('N')], ['Wheel: spin', K('Space')], ['Garden: collect', K('C')], ['Chests: open / open all', K('O', 'A')], ['Quests, achievements: claim', K('Enter')]]) +
+      sec('Levels map', [['Pick a level', K(AI('LEFT'), AI('RIGHT'), AI('UP'), AI('DOWN'))], ['Play it', K('Enter')], ['Previous / next world', K('Q', 'E')]]) +
+      sec('Shop & Rewards', [['Switch tab', K('1') + '–' + K('7') + ' or ' + K(AI('LEFT'), AI('RIGHT'))], ['Quiz: answer / next', K('A', 'B', 'C', 'D') + ' ' + K('N')], ['Wheel: spin', K('Space')], ['Garden: collect', K('C')], ['Chests: open / open all', K('O', 'A')], ['Quests, achievements: claim', K('Enter')]]) +
       sec('Opening chests', [['Tap the chest / next', K('Space')], ['Open all', K('A')], ['Later', K('Esc')]]) +
       '</div><div class="row"><button class="btn gold big" id="ksOk">Got it</button></div>', () => on('ksOk', closeModal));
   }
