@@ -11,21 +11,53 @@
   // milestone: { world: n } all levels of world n cleared · { streak: n } best daily streak · { allStars: true }
   const CATALOG = [
     { id: 'letter', slot: 'face', name: 'Classic', desc: 'Each echo shows its kind\'s shape and letter.', default: true, rarity: 'common' },
-    { id: 'cyan', slot: 'orb', name: 'Cyan', desc: 'The original glow.', default: true },
-    { id: 'sunset', slot: 'orb', name: 'Sunset', desc: 'Warm orange and rose.', price: 350 },
-    { id: 'plasma', slot: 'orb', name: 'Plasma', desc: 'Electric magenta.', price: 800 },
-    { id: 'ghost', slot: 'orb', name: 'Ghost', desc: 'See-through, with a dashed rim.', milestone: { streak: 7 } },
-    { id: 'goldorb', slot: 'orb', name: 'Gold', desc: 'Pure gold.', milestone: { world: 6 } },
+    { id: 'cyan', slot: 'orb', rarity: 'common', name: 'Cyan', desc: 'The original glow.', default: true },
+    { id: 'mint', slot: 'orb', rarity: 'common', name: 'Mint', desc: 'Cool and fresh.', price: 150 },
+    { id: 'ruby', slot: 'orb', rarity: 'common', name: 'Ruby', desc: 'A deep red gem.', price: 200 },
+    { id: 'ocean', slot: 'orb', rarity: 'common', name: 'Ocean', desc: 'Blue like deep water.', price: 200 },
+    { id: 'sunset', slot: 'orb', rarity: 'rare', name: 'Sunset', desc: 'Warm orange and rose.', price: 350 },
+    { id: 'plasma', slot: 'orb', rarity: 'rare', name: 'Plasma', desc: 'Electric magenta.', price: 800 },
+    { id: 'toxic', slot: 'orb', rarity: 'rare', name: 'Toxic', desc: 'Bubbling acid green.', price: 900 },
+    { id: 'lava', slot: 'orb', rarity: 'epic', name: 'Lava', desc: 'Molten rock that churns as you move.', price: 1500 },
+    { id: 'eclipse', slot: 'orb', rarity: 'epic', name: 'Eclipse', desc: 'A black sun with a burning corona.', price: 1800 },
+    { id: 'ghost', slot: 'orb', rarity: 'epic', name: 'Ghost', desc: 'See-through, with a dashed rim.', milestone: { streak: 7 } },
+    { id: 'goldorb', slot: 'orb', rarity: 'legendary', name: 'Gold', desc: 'Pure gold.', milestone: { world: 6 }, aura: 'gold' },
+    { id: 'stormorb', slot: 'orb', rarity: 'legendary', name: 'Storm Core', desc: 'A crackling ball of lightning.', price: 4500, aura: 'storm' },
+    { id: 'sunorb', slot: 'orb', rarity: 'legendary', name: 'Solar Flare', desc: 'A tiny sun with spinning flares.', price: 4000, aura: 'inferno' },
+    { id: 'galaxyorb', slot: 'orb', rarity: 'legendary', name: 'Nebula', desc: 'A whole galaxy, slowly turning.', price: 4000, aura: 'cosmos' },
+    { id: 'frostorb', slot: 'orb', rarity: 'legendary', name: 'Ice Heart', desc: 'A frozen crystal that sparkles.', price: 3500, aura: 'frost' },
+    { id: 'prismorb', slot: 'orb', rarity: 'legendary', name: 'Prism', desc: 'Every colour at once.', price: 4000, aura: 'aurora' },
 
-    { id: 'glow', slot: 'trail', name: 'Glow', desc: 'Floors glow where you step.', default: true },
-    { id: 'sparks', slot: 'trail', name: 'Sparks', desc: 'White sparks follow you.', milestone: { world: 2 } },
-    { id: 'rainbow', slot: 'trail', name: 'Rainbow', desc: 'Every step a new colour.', price: 1000 },
-    { id: 'embers', slot: 'trail', name: 'Embers', desc: 'Hot orange footsteps.', milestone: { world: 4 } },
+    { id: 'glow', slot: 'trail', rarity: 'common', name: 'Glow', desc: 'Floors glow where you step.', default: true },
+    { id: 'fizz', slot: 'trail', rarity: 'common', name: 'Bubbles', desc: 'Every step pops bubbles.', price: 200 },
+    { id: 'hearts', slot: 'trail', rarity: 'common', name: 'Hearts', desc: 'Leave a little love behind.', price: 300 },
+    { id: 'pixels', slot: 'trail', rarity: 'rare', name: 'Pixels', desc: 'Retro pixel confetti.', price: 400 },
+    { id: 'sparks', slot: 'trail', rarity: 'rare', name: 'Sparks', desc: 'White sparks follow you.', milestone: { world: 2 } },
+    { id: 'frosttrail', slot: 'trail', rarity: 'rare', name: 'Frost', desc: 'Footsteps of fresh snow.', price: 600 },
+    { id: 'petals', slot: 'trail', rarity: 'rare', name: 'Petals', desc: 'Blossoms swirl at your feet.', price: 700 },
+    { id: 'embers', slot: 'trail', rarity: 'epic', name: 'Embers', desc: 'Hot orange footsteps.', milestone: { world: 4 } },
+    { id: 'rainbow', slot: 'trail', rarity: 'epic', name: 'Rainbow', desc: 'Every step a new colour.', price: 1000 },
+    { id: 'comet', slot: 'trail', rarity: 'epic', name: 'Comet', desc: 'A blazing comet tail.', price: 1500 },
+    { id: 'shadow', slot: 'trail', rarity: 'epic', name: 'Shadow', desc: 'Smoke curls behind you.', price: 1800 },
+    { id: 'lightning', slot: 'trail', rarity: 'legendary', name: 'Lightning', desc: 'Every step is a lightning bolt.', price: 4500, aura: 'storm' },
+    { id: 'starfall', slot: 'trail', rarity: 'legendary', name: 'Starfall', desc: 'Stars burst from each step.', price: 4000, aura: 'cosmos' },
+    { id: 'inferno', slot: 'trail', rarity: 'legendary', name: 'Inferno', desc: 'Walk on fire.', price: 4000, aura: 'inferno' },
+    { id: 'matrixtrail', slot: 'trail', rarity: 'legendary', name: 'The Code', desc: 'You leave code where you walk.', price: 3500, aura: 'matrix' },
 
-    { id: 'classic', slot: 'portal', name: 'Classic', desc: 'Mint and cyan swirl.', default: true },
-    { id: 'galaxy', slot: 'portal', name: 'Galaxy', desc: 'Violet, pink and blue.', price: 600 },
-    { id: 'sunportal', slot: 'portal', name: 'Sunrise', desc: 'Gold and coral.', price: 600 },
-    { id: 'void', slot: 'portal', name: 'Void', desc: 'A dark hole with a bright rim.', milestone: { world: 5 } },
+    { id: 'classic', slot: 'portal', rarity: 'common', name: 'Classic', desc: 'Mint and cyan swirl.', default: true },
+    { id: 'emerald', slot: 'portal', rarity: 'common', name: 'Emerald', desc: 'A green gem whirl.', price: 200 },
+    { id: 'rubyrift', slot: 'portal', rarity: 'common', name: 'Ruby Rift', desc: 'Red and hot pink.', price: 250 },
+    { id: 'whirlpool', slot: 'portal', rarity: 'common', name: 'Whirlpool', desc: 'Deep blue water.', price: 300 },
+    { id: 'galaxy', slot: 'portal', rarity: 'rare', name: 'Galaxy', desc: 'Violet, pink and blue.', price: 600 },
+    { id: 'sunportal', slot: 'portal', rarity: 'rare', name: 'Sunrise', desc: 'Gold and coral.', price: 600 },
+    { id: 'candy', slot: 'portal', rarity: 'rare', name: 'Candy', desc: 'A peppermint spiral.', price: 800 },
+    { id: 'blackhole', slot: 'portal', rarity: 'epic', name: 'Black Hole', desc: 'A dark core with a burning ring.', price: 1600 },
+    { id: 'void', slot: 'portal', rarity: 'epic', name: 'Void', desc: 'A dark hole with a bright rim.', milestone: { world: 5 } },
+    { id: 'stormgate', slot: 'portal', rarity: 'legendary', name: 'Storm Gate', desc: 'A crackling ring of lightning.', price: 4500, aura: 'storm' },
+    { id: 'infernogate', slot: 'portal', rarity: 'legendary', name: 'Inferno Gate', desc: 'A ring of fire.', price: 4000, aura: 'inferno' },
+    { id: 'starfield', slot: 'portal', rarity: 'legendary', name: 'Warp Tunnel', desc: 'Fly through a tunnel of stars.', price: 4000, aura: 'cosmos' },
+    { id: 'frostgate', slot: 'portal', rarity: 'legendary', name: 'Frost Gate', desc: 'An icy crystal ring.', price: 3500, aura: 'frost' },
+    { id: 'cosmiceye', slot: 'portal', rarity: 'legendary', name: 'Cosmic Eye', desc: 'The portal watches you. Always.', price: 5000, aura: 'void' },
 
     { id: 'hint3', slot: 'boost', boost: 'hint', qty: 3, name: 'Hint pack', desc: '3 hints. Each shows the next winning move from wherever you are.', price: 80 },
     { id: 'moves3', slot: 'boost', boost: 'moves', qty: 1, name: '+3 moves', desc: 'Adds 3 moves to a move-limited level. A boosted run earns at most 2 stars.', price: 60 },
@@ -34,7 +66,7 @@
   ];
   // Every character in the roster is a face item (the kind of echo is still shown by its badge).
   const BLURB = { common: 'A cheerful everyday echo.', rare: 'A rare echo with real personality.', epic: 'An epic echo. Turns heads.', legendary: 'Legendary. Few players ever see one.' };
-  Chars.ROSTER.forEach((ch) => CATALOG.splice(1 + Chars.ROSTER.indexOf(ch), 0, Object.assign({ slot: 'face', desc: BLURB[ch.rarity] }, { id: ch.id, name: ch.name, rarity: ch.rarity, price: ch.price, milestone: ch.milestone, char: ch })));
+  Chars.ROSTER.forEach((ch) => CATALOG.splice(1 + Chars.ROSTER.indexOf(ch), 0, Object.assign({ slot: 'face', desc: ch.aura ? Chars.AURAS[ch.aura].desc : BLURB[ch.rarity] }, { id: ch.id, name: ch.name, rarity: ch.rarity, price: ch.price, milestone: ch.milestone, char: ch, aura: ch.aura })));
   const byId = (id) => CATALOG.find((c) => c.id === id);
 
   function init(prog) {
@@ -94,5 +126,12 @@
     return ms ? { item: ms, text: milestoneText(ms) + ' to unlock ' + ms.name, ready: false } : null;
   }
 
-  return { SLOTS, DEFAULTS, CATALOG, byId, init, owns, milestoneMet, milestoneText, worldCleared, buy, equip, useBoost, newUnlocks, nextGoal };
+  /* The active aura: the first equipped item (character, orb, trail, portal) that has one. */
+  function activeAura(prog) {
+    init(prog);
+    for (const slot of SLOTS) { const it = byId(prog.equip[slot]); if (it && it.aura) return it.aura; }
+    return null;
+  }
+
+  return { activeAura, AURAS: Chars.AURAS, SLOTS, DEFAULTS, CATALOG, byId, init, owns, milestoneMet, milestoneText, worldCleared, buy, equip, useBoost, newUnlocks, nextGoal };
 });

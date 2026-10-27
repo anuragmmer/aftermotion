@@ -2,7 +2,7 @@
  * Rules live in engine.js, rewards in progress.js; this file only presents state and sends commands. */
 (function () {
   'use strict';
-  const AM = window.AM, LEVELS = window.AMLevels, P = window.AMProgress, SFX = window.AMAudio, Shop = window.AMShop, Chars = window.AMChars;
+  const AM = window.AM, LEVELS = window.AMLevels, P = window.AMProgress, SFX = window.AMAudio, Shop = window.AMShop, Chars = window.AMChars, Amb = window.AMAmbient;
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
   const ROT = { UP: 0, RIGHT: 90, DOWN: 180, LEFT: 270 };
@@ -37,7 +37,23 @@
   function applySettings() {
     SFX.setEnabled(!!prog.sound); document.body.classList.toggle('reduce', !!prog.reduceMotion);
     Shop.SLOTS.forEach((k) => (document.body.dataset[k] = prog.equip[k]));
+    applyAura();
   }
+  /* The equipped legendary item's aura sets the mood of the whole game. */
+  let auraPreview = null;
+  function applyAura() {
+    if (auraPreview) return;
+    Amb.setMode(prog.ambient !== false && !reduced() ? Shop.activeAura(prog) : null);
+  }
+  const TRAILS = {
+    glow: {}, fizz: { color: '#7fdcff', burst: 'bubbles' }, hearts: { color: '#ff8fb1', burst: 'hearts' }, pixels: { color: '#6dffb3', burst: 'pixels' },
+    sparks: { color: '#ffffff', burst: 'sparks' }, frosttrail: { color: '#bfe9ff', burst: 'snow' }, petals: { color: '#ffb3d1', burst: 'petals' },
+    embers: { color: '#ff7a3d', burst: 'embers' }, rainbow: { color: 'hue', burst: 'confetti' }, comet: { color: '#ffe066', burst: 'comet' },
+    shadow: { color: '#6e64a8', burst: 'smoke' }, lightning: { color: '#7fd6ff', bolt: true, burst: 'sparks' }, starfall: { color: '#fff3c4', burst: 'stars' },
+    inferno: { color: '#ff5a2e', burst: 'flames' }, matrixtrail: { color: '#39ff8a', burst: 'code' },
+  };
+  const AURA_BURST = { inferno: 'embers', frost: 'snow', cosmos: 'stars', matrix: 'code', aurora: 'sparks', sakura: 'petals', synth: 'neon', gold: 'comet', void: 'implode' };
+  const center = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
 
   /* ================= screens ================= */
   function setTheme(theme, boss) {
@@ -322,9 +338,10 @@
         let lbl = '';
         if (L.plates[k]) { cls += ' plate'; lbl = L.plates[k].toLowerCase(); el.style.setProperty('--pc', PLATE_COLOR[L.plates[k]]); }
         if (L.doors[k]) { cls = 'tile floor door'; lbl = L.doors[k]; el.style.setProperty('--pc', PLATE_COLOR[L.doors[k]]); }
-        if (AM.isExit(L, x, y)) { cls += ' exit p-' + prog.equip.portal; if (L.exitLock.length) { cls += ' powered'; lbl = L.exitLock[0].toLowerCase(); el.style.setProperty('--pc', PLATE_COLOR[L.exitLock[0]]); } }
+        if (AM.isExit(L, x, y)) { cls += ' exit p-' + prog.equip.portal; lbl = lbl || ''; if (L.exitLock.length) { cls += ' powered'; lbl = L.exitLock[0].toLowerCase(); el.style.setProperty('--pc', PLATE_COLOR[L.exitLock[0]]); } }
         el.className = cls;
         if (lbl) el.innerHTML = '<span class="lbl">' + lbl + '</span>';
+        if (AM.isExit(L, x, y)) el.insertAdjacentHTML('beforeend', '<span class="peye"></span>');
         board.appendChild(el); row.push(el);
       }
       tileEls.push(row);
@@ -389,7 +406,11 @@
       if (!el) continue;
       if (L.plates[k]) el.classList.toggle('on', !!S.plateActive[L.plates[k]]);
       if (L.doors[k]) el.classList.toggle('open', !!S.open[L.doors[k]]);
-      if (AM.isExit(L, x, y)) el.classList.toggle('locked', !ready);
+      if (AM.isExit(L, x, y)) {
+        el.classList.toggle('locked', !ready);
+        const dx = S.player.x - x, dy = S.player.y - y, len = Math.hypot(dx, dy) || 1;
+        el.style.setProperty('--ex', (dx / len) * 4 + 'px'); el.style.setProperty('--ey', (dy / len) * 4 + 'px');
+      }
       el.classList.toggle('hopok', !!hopE && L.tiles[y][x] !== '#' && !AM.hopError(L, S, hopE, x, y));
     }
     // actors
@@ -854,11 +875,11 @@
     $$('#shopTabs .tab').forEach((b) => (b.onclick = () => { shopTab = b.dataset.tab; SFX.click(); renderShop(); }));
     const RANK = { common: 0, rare: 1, epic: 2, legendary: 3 };
     const list = Shop.CATALOG.filter((c) => c.slot === shopTab);
-    if (shopTab === 'face') list.sort((a, b) => (b.default ? 1 : 0) - (a.default ? 1 : 0) || RANK[a.rarity] - RANK[b.rarity] || (a.price || 1e9) - (b.price || 1e9));
+    if (shopTab !== 'boost') list.sort((a, b) => (b.default ? 1 : 0) - (a.default ? 1 : 0) || RANK[a.rarity] - RANK[b.rarity] || (a.price || 1e9) - (b.price || 1e9));
     let lastRarity = null;
     $('#shopGrid').innerHTML = list.map((it) => {
-      const head = shopTab === 'face' && !it.default && it.rarity !== lastRarity ? '<div class="rarity-head" style="--rc:' + Chars.RARITY[it.rarity].color + '">' + Chars.RARITY[it.rarity].label + ' · ' + list.filter((q) => q.rarity === it.rarity && !q.default).length + ' characters</div>' : '';
-      if (shopTab === 'face' && !it.default) lastRarity = it.rarity;
+      const head = shopTab !== 'boost' && !it.default && it.rarity !== lastRarity ? '<div class="rarity-head" style="--rc:' + Chars.RARITY[it.rarity].color + '">' + Chars.RARITY[it.rarity].label + ' · ' + list.filter((q) => q.rarity === it.rarity && !q.default).length + (shopTab === 'face' ? ' characters' : ' items') + '</div>' : '';
+      if (shopTab !== 'boost' && !it.default) lastRarity = it.rarity;
       const owned = it.slot !== 'boost' && Shop.owns(prog, LEVELS, it), on = owned && prog.equip[it.slot] === it.id;
       let btn;
       if (it.slot === 'boost') btn = '<button class="btn gold" data-buy="' + it.id + '"' + (prog.coins < it.price ? ' disabled' : '') + '><i class="coin-ico" style="width:18px;height:18px"></i>' + it.price + '</button>';
@@ -867,9 +888,11 @@
       else if (it.price) btn = '<button class="btn gold" data-buy="' + it.id + '"' + (prog.coins < it.price ? ' disabled' : '') + '><i class="coin-ico" style="width:18px;height:18px"></i>' + it.price + '</button>';
       else btn = '<button class="btn" disabled><svg><use href="#i-lock"/></svg>Locked</button>';
       const tag = it.milestone ? (owned ? 'EARNED REWARD' : 'REWARD: ' + Shop.milestoneText(it).toUpperCase()) : it.default ? 'STARTER' : it.slot === 'boost' ? 'BOOST' : 'SHOP';
-      return head + '<div class="item' + (it.rarity && shopTab === 'face' ? ' r-' + it.rarity : '') + (on ? ' equipped' : '') + (!owned && it.slot !== 'boost' && !it.price ? ' locked' : '') + '">' +
+      return head + '<div class="item' + (it.rarity && shopTab !== 'boost' ? ' r-' + it.rarity : '') + (on ? ' equipped' : '') + (!owned && it.slot !== 'boost' && !it.price ? ' locked' : '') + '">' +
         (it.slot === 'boost' ? '<span class="owned-n">×' + prog.inv[it.boost] + '</span>' : '') + previewHTML(it) +
-        '<span class="tagline">' + esc(tag) + '</span><h4>' + esc(it.name) + '</h4><p>' + esc(it.desc) + '</p>' + btn + '</div>';
+        '<span class="tagline">' + esc(tag) + '</span><h4>' + esc(it.name) + '</h4>' +
+        (it.aura ? '<span class="aura-tag">AURA · ' + esc(Shop.AURAS[it.aura].name.toUpperCase()) + '</span>' : '') + '<p>' + esc(it.desc) + '</p>' +
+        (it.aura ? '<button class="plan-btn" data-aurapv="' + it.aura + '">Preview aura</button>' : '') + btn + '</div>';
     }).join('');
     // previews show the item itself, not the equipped one
     $$('#shopGrid [data-buy]').forEach((b) => (b.onclick = () => {
@@ -879,6 +902,13 @@
       persist(); applySettings(); SFX.win(); buzz(30); confetti();
       toast(it.slot === 'boost' ? it.name + ' added. You have ' + prog.inv[it.boost] + '.' : it.name + ' unlocked and equipped!');
       coins(); renderShop();
+    }));
+    $$('#shopGrid [data-aurapv]').forEach((b) => (b.onclick = () => {
+      if (reduced()) { toast('Auras are off while Reduce motion is on.'); return; }
+      clearTimeout(auraPreview); auraPreview = setTimeout(() => { auraPreview = null; applyAura(); }, 6000);
+      Amb.setMode(b.dataset.aurapv); SFX.favour();
+      if (b.dataset.aurapv === 'storm') { const [x, y] = center(b); setTimeout(() => { Amb.strike(x, y - 120); SFX.thunder(); }, 300); }
+      toast(Shop.AURAS[b.dataset.aurapv].name + ': ' + Shop.AURAS[b.dataset.aurapv].desc);
     }));
     // tap a character to see its moods; hover makes it happy
     $$('#shopGrid .charpv').forEach((b) => {
@@ -956,10 +986,16 @@
   }
   /* Floors light up under your steps; on reactive and boss levels a wave rolls out from you on
      every move and the frame beats when an echo acts. */
-  function floorFx(next, fired) {
+  function floorFx(prev, next, fired) {
     if (reduced()) return;
-    const px = next.player.x, py = next.player.y, trail = prog.equip.trail;
-    const glow = trail === 'rainbow' ? 'hsl(' + ((next.moves * 47) % 360) + ',90%,65%)' : trail === 'embers' ? '#ff7a3d' : trail === 'sparks' ? '#ffffff' : getComputedStyle(document.body).getPropertyValue('--glow').trim() || '#4fe3ff';
+    const px = next.player.x, py = next.player.y, T = TRAILS[prog.equip.trail] || {};
+    const glow = T.color === 'hue' ? 'hsl(' + ((next.moves * 47) % 360) + ',90%,65%)' : T.color || getComputedStyle(document.body).getPropertyValue('--glow').trim() || '#4fe3ff';
+    const from = tileRect(prev.player.x, prev.player.y), to = tileRect(px, py);
+    if (to && (T.burst || T.bolt)) {
+      const tx = to.left + to.width / 2, ty = to.top + to.height / 2;
+      if (T.bolt && from) { Amb.bolt(from.left + from.width / 2, from.top + from.height / 2, tx, ty, '#bfeaff', 2.4); }
+      if (T.burst) Amb.burst(T.burst, tx, ty, 10);
+    }
     const lightTile = (x, y, delay, strength, dur) => {
       const el = tileEls[y] && tileEls[y][x]; if (!el || el.classList.contains('wall')) return;
       const l = document.createElement('i'); l.className = 'lit'; l.style.background = glow; l.style.opacity = 0;
@@ -979,7 +1015,7 @@
   }
   function fx(prev, next, events, meta) {
     const fired = new Set(events.filter((e) => e.echo).map((e) => e.echo));
-    if (meta.kind === 'move') floorFx(next, fired);
+    if (meta.kind === 'move') floorFx(prev, next, fired);
     if (meta.kind === 'move') {
       const p = actorEls.get('player');
       if (p) anim(p.querySelector('.orb'), [{ transform: 'scale(1.2,.82)' }, { transform: 'scale(1)' }], { duration: 180, easing: 'cubic-bezier(.3,1.4,.5,1)' });
@@ -989,7 +1025,14 @@
       }
     }
     for (const e of events) {
-      if (e.type === 'ECHO_MOVED') { const ec = next.echoes.find((q) => q.id === e.echo); ripple(ec.x, ec.y, ECHO_INFO[ec.type].color); SFX.fire(); buzz(15); mood(e.echo, 'happy', 750); }
+      if (e.type === 'ECHO_MOVED') {
+        const ec = next.echoes.find((q) => q.id === e.echo); ripple(ec.x, ec.y, ECHO_INFO[ec.type].color); SFX.fire(); buzz(15); mood(e.echo, 'happy', 750);
+        const ael = actorEls.get('echo' + e.echo), aura = Amb.mode();
+        if (ael && aura && !reduced()) {
+          const [x, y] = center(ael);
+          if (aura === 'storm') { Amb.strike(x, y); SFX.thunder(); } else if (AURA_BURST[aura]) Amb.burst(AURA_BURST[aura], x, y, 16);
+        }
+      }
       if (e.type === 'BUILD' || (e.type === 'HELPER' && /sends|reached/.test(e.text))) mood(e.echo, 'happy', 750);
       if (e.type === 'ECHO_BLOCKED') {
         SFX.echoBlocked(); mood(e.echo, 'dizzy', 1000);
@@ -1119,10 +1162,12 @@
   function settings(confirmReset) {
     openModal('<h2>Settings</h2>' +
       '<div class="setting">Sound effects<button class="toggle" role="switch" id="sSound" aria-checked="' + !!prog.sound + '" aria-label="Sound effects"></button></div>' +
+      '<div class="setting">Ambient auras<button class="toggle" role="switch" id="sAmb" aria-checked="' + (prog.ambient !== false) + '" aria-label="Ambient auras"></button></div>' +
       '<div class="setting">Reduce motion<button class="toggle" role="switch" id="sMotion" aria-checked="' + !!prog.reduceMotion + '" aria-label="Reduce motion"></button></div>' +
       '<div class="setting">Progress<button class="btn" id="sReset" style="min-height:42px' + (confirmReset ? ';background:var(--pink);color:#2a0010' : '') + '">' + (confirmReset ? 'Tap again to erase' : 'Reset progress') + '</button></div>' +
       '<div class="row"><button class="btn gold big" id="sOk">Done</button></div>', () => {
       on('sSound', () => { prog.sound = !prog.sound; persist(); applySettings(); settings(); });
+      on('sAmb', () => { prog.ambient = prog.ambient === false; persist(); applySettings(); settings(); });
       on('sMotion', () => { prog.reduceMotion = !prog.reduceMotion; persist(); applySettings(); settings(); });
       on('sReset', () => { if (!confirmReset) return settings(true); prog = P.defaults(); prog.introDone = true; persist(); applySettings(); mapSel = null; closeModal(); show('title'); toast('Progress erased.'); });
       on('sOk', () => { closeModal(); if (screen === 'title') renderTitle(); });
@@ -1191,6 +1236,7 @@
   });
 
   // boot
+  Amb.init();
   applySettings();
   show('title');
   if (!prog.introDone) help();

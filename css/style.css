@@ -597,3 +597,103 @@ body.won .board-frame::after{box-shadow:inset 0 0 0 4px var(--mint),inset 0 0 80
 @keyframes hringPulse{50%{transform:scale(.82);opacity:.6}}
 .dpad button.hinted,.btn.hinted{box-shadow:0 0 0 3px var(--mint),0 0 22px var(--mint)!important;animation:hintBtn 1s ease-in-out infinite}
 @keyframes hintBtn{50%{transform:translateY(-3px)}}
+
+/* ---------- auras: ambient canvas, tint and lightning flash ---------- */
+#ambient{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+#auraTint{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:0;transition:opacity .8s;overflow:hidden}
+.screen{z-index:1}
+#flash{position:fixed;inset:0;background:#e8f6ff;opacity:0;pointer-events:none;z-index:45}
+#flash.on{animation:flashA .55s ease-out}
+@keyframes flashA{0%{opacity:.5}12%{opacity:.08}22%{opacity:.35}100%{opacity:0}}
+body[data-aura]:not([data-aura=""]) #auraTint{opacity:1}
+body[data-aura=storm] #auraTint{background:radial-gradient(ellipse at 50% -20%,#3a6db866,transparent 60%),linear-gradient(#08122acc,transparent 70%)}
+body[data-aura=inferno] #auraTint{background:radial-gradient(ellipse at 50% 120%,#ff5a2e55,transparent 60%),radial-gradient(ellipse at 10% 100%,#ffb00033,transparent 50%)}
+body[data-aura=frost] #auraTint{background:radial-gradient(ellipse at 50% -10%,#bfe9ff44,transparent 60%),linear-gradient(#0b1e3a99,transparent 60%)}
+body[data-aura=cosmos] #auraTint{background:radial-gradient(circle at 20% 30%,#6a3bd644,transparent 40%),radial-gradient(circle at 80% 70%,#ff5c8a2e,transparent 40%),radial-gradient(circle at 60% 20%,#4fe3ff22,transparent 35%)}
+body[data-aura=matrix] #auraTint{background:linear-gradient(#002a1199,#000a0499)}
+body[data-aura=aurora] #auraTint{background:linear-gradient(115deg,transparent 20%,#39ff8a33 35%,#4fe3ff33 45%,#b06bff33 55%,transparent 70%);background-size:300% 300%;animation:auroraMove 12s ease-in-out infinite alternate}
+@keyframes auroraMove{from{background-position:0% 30%}to{background-position:100% 70%}}
+body[data-aura=sakura] #auraTint{background:radial-gradient(ellipse at 50% 0%,#ffb3d144,transparent 60%)}
+body[data-aura=synth] #auraTint{background:linear-gradient(transparent 55%,#ff5cf033 75%,#4fe3ff22)}
+body[data-aura=synth] #auraTint::after{content:'';position:absolute;left:-50%;right:-50%;bottom:-10%;height:45%;background:repeating-linear-gradient(90deg,#ff5cf055 0 2px,transparent 2px 60px),repeating-linear-gradient(0deg,#ff5cf055 0 2px,transparent 2px 40px);transform:perspective(300px) rotateX(60deg);transform-origin:bottom;animation:gridRun 2s linear infinite;mask-image:linear-gradient(transparent,#000 40%)}
+@keyframes gridRun{to{background-position:0 0,0 40px}}
+body[data-aura=gold] #auraTint{background:radial-gradient(ellipse at 50% 50%,#ffc24b22,transparent 70%)}
+body[data-aura=void] #auraTint{background:radial-gradient(circle at 50% 50%,transparent 30%,#000000aa 90%);animation:voidPulse 5s ease-in-out infinite}
+@keyframes voidPulse{50%{opacity:.6}}
+body[data-aura=storm] .board-frame{box-shadow:inset 0 4px 0 var(--wallHi),inset 0 -8px 0 var(--wallLo),0 0 0 3px #7fd6ff55,0 0 40px #4fb8ff55}
+body[data-aura=inferno] .board-frame{box-shadow:inset 0 4px 0 var(--wallHi),inset 0 -8px 0 var(--wallLo),0 0 0 3px #ff7a3d55,0 0 40px #ff5a2e55}
+body[data-aura=frost] .board-frame{box-shadow:inset 0 4px 0 var(--wallHi),inset 0 -8px 0 var(--wallLo),0 0 0 3px #bfe9ff77,0 0 40px #bfe9ff44}
+body[data-aura=cosmos] .board-frame,body[data-aura=void] .board-frame{box-shadow:inset 0 4px 0 var(--wallHi),inset 0 -8px 0 var(--wallLo),0 0 0 3px #b06bff55,0 0 40px #6a3bd655}
+body[data-aura=matrix] .board-frame{box-shadow:inset 0 4px 0 var(--wallHi),inset 0 -8px 0 var(--wallLo),0 0 0 3px #39ff8a55,0 0 36px #39ff8a44;animation:glitchFrame 7s steps(1) infinite}
+@keyframes glitchFrame{0%,96%,100%{transform:none;filter:none}97%{transform:translate(3px,-1px);filter:drop-shadow(-3px 0 #ff00aa) drop-shadow(3px 0 #00ffcc)}98%{transform:translate(-2px,1px)}}
+body[data-aura=synth] .board-frame{box-shadow:inset 0 4px 0 var(--wallHi),inset 0 -8px 0 var(--wallLo),0 0 0 3px #ff5cf066,0 0 44px #ff5cf055}
+body[data-aura=gold] .board-frame{box-shadow:inset 0 4px 0 var(--wallHi),inset 0 -8px 0 var(--wallLo),0 0 0 3px #ffc24b66,0 0 40px #ffc24b44}
+body[data-aura=aurora] .board-frame{box-shadow:inset 0 4px 0 var(--wallHi),inset 0 -8px 0 var(--wallLo),0 0 0 3px #39ff8a44,0 0 44px #4fe3ff44}
+.aura-tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:900;letter-spacing:.08em;color:#0d0922;background:linear-gradient(90deg,#ffc24b,#ff5cf0,#4fe3ff);border-radius:7px;padding:2px 8px;align-self:flex-start}
+
+/* character extras */
+.chr.glitch{animation:glitchChr 3s steps(1) infinite}
+@keyframes glitchChr{0%,88%,100%{transform:none;filter:drop-shadow(0 0 4px #39ff8a)}90%{transform:translate(2px,0) skewX(8deg);filter:drop-shadow(-3px 0 #ff00aa) drop-shadow(3px 0 #00ffcc)}93%{transform:translate(-2px,1px);filter:drop-shadow(3px 0 #ff00aa) drop-shadow(-3px 0 #00ffcc)}}
+.chr .arc{animation:arcFlicker .45s steps(2) infinite;filter:drop-shadow(0 0 3px #7fd6ff)}
+@keyframes arcFlicker{50%{opacity:.15}}
+.chr .zap{filter:drop-shadow(0 0 4px #ffe066);animation:zapPulse 1.4s ease-in-out infinite}
+@keyframes zapPulse{50%{filter:drop-shadow(0 0 10px #ffe066)}}
+.chr .wing{transform-box:fill-box;transform-origin:100% 80%;animation:flap .6s ease-in-out infinite alternate}
+.chr .wing.w2{transform-origin:0% 80%}
+@keyframes flap{to{transform:rotate(-14deg)}}
+.chr .wing.w2{animation-name:flap2}@keyframes flap2{to{transform:rotate(14deg)}}
+
+/* ---------- more orbs ---------- */
+.orb.o-mint{background:radial-gradient(circle at 35% 30%,#fff,#b8ffd8 35%,#3ddc97 70%);box-shadow:0 0 22px #3ddc97,0 5px 0 #1a7a52}
+.orb.o-ruby{background:radial-gradient(circle at 35% 30%,#fff,#ff9aa8 30%,#d6163d 72%);box-shadow:0 0 22px #ff3b5c,0 5px 0 #7a0a20}
+.orb.o-ocean{background:radial-gradient(circle at 35% 30%,#fff,#8fd3ff 30%,#1561d6 72%);box-shadow:0 0 22px #2f7bff,0 5px 0 #0a3580}
+.orb.o-toxic{background:radial-gradient(circle at 35% 30%,#f4ffd0,#b6ff3b 35%,#4fa300 72%);box-shadow:0 0 24px #9dff2e,0 5px 0 #2f6300;animation:toxic 1.6s ease-in-out infinite}
+@keyframes toxic{50%{box-shadow:0 0 34px #c6ff5a,0 5px 0 #2f6300}}
+.orb.o-lava{background:radial-gradient(circle at 30% 30%,#fff3c4,transparent 25%),linear-gradient(130deg,#ff3b00,#ffb000,#ff5a2e,#8a1a00,#ff7a3d);background-size:100% 100%,300% 300%;box-shadow:0 0 26px #ff5a2e,0 5px 0 #6b1500;animation:lavaFlow 3s ease-in-out infinite alternate}
+@keyframes lavaFlow{to{background-position:0 0,100% 100%}}
+.orb.o-eclipse{background:radial-gradient(circle,#000 58%,#2a1400 62%);box-shadow:0 0 0 2px #ffb000,0 0 18px 4px #ff7a3d,0 0 40px #ffc24b88;animation:corona 2.4s ease-in-out infinite}
+@keyframes corona{50%{box-shadow:0 0 0 3px #ffe066,0 0 26px 8px #ff7a3d,0 0 60px #ffc24baa}}
+.orb.o-stormorb{background:radial-gradient(circle at 40% 35%,#fff,#bfeaff 30%,#2f7bff 70%);box-shadow:0 0 24px #7fd6ff,0 0 4px #fff;animation:stormCrackle .9s steps(2) infinite}
+.orb.o-stormorb::before{content:'';position:absolute;inset:-22%;border-radius:50%;border:2px dashed #bfeaff;animation:spin 1.2s linear infinite;filter:drop-shadow(0 0 4px #7fd6ff)}
+@keyframes stormCrackle{50%{box-shadow:0 0 34px #bfeaff,0 0 10px #fff}}
+.orb.o-sunorb{background:radial-gradient(circle,#fff 10%,#ffe066 40%,#ff9a1e 75%);box-shadow:0 0 30px #ffb000,0 0 60px #ff5a2e88}
+.orb.o-sunorb::before{content:'';position:absolute;inset:-40%;border-radius:50%;background:repeating-conic-gradient(#ffc24b88 0 8deg,transparent 8deg 30deg);mask-image:radial-gradient(circle,transparent 42%,#000 44%,transparent 70%);animation:spin 5s linear infinite}
+.orb.o-galaxyorb{background:conic-gradient(from 0deg,#2a0f5c,#6a3bd6,#ff5c8a,#4fe3ff,#2a0f5c);box-shadow:0 0 28px #b06bff,0 0 4px #fff;animation:spin 6s linear infinite}
+.orb.o-galaxyorb::before{content:'';position:absolute;inset:18%;border-radius:50%;background:radial-gradient(circle,#fff 0 6%,transparent 8%),radial-gradient(circle at 70% 30%,#fff 0 4%,transparent 6%),radial-gradient(circle at 30% 70%,#fff 0 4%,transparent 6%)}
+.orb.o-frostorb{background:conic-gradient(from 30deg,#e8fbff,#9ee8ff,#ffffff,#7fd6ff,#e8fbff);clip-path:polygon(50% 0,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);box-shadow:none;filter:drop-shadow(0 0 10px #bfe9ff)}
+.orb.o-prismorb{background:conic-gradient(#ff5c8a,#ffc24b,#6dffb3,#4fe3ff,#c49bff,#ff5c8a);box-shadow:0 0 26px #fff8;animation:prism 3s linear infinite}
+
+/* ---------- more trails (dots behind you) ---------- */
+.dot.t-fizz{background:transparent!important;border:2px solid #9ee8ff;inset:30%!important}
+.dot.t-hearts{background:#ff5c8a;border-radius:0;clip-path:polygon(50% 92%,8% 50%,8% 24%,28% 8%,50% 24%,72% 8%,92% 24%,92% 50%)}
+.dot.t-pixels{background:#6dffb3;border-radius:2px;box-shadow:6px 4px 0 #ff5cf0,-5px 6px 0 #4fe3ff}
+.dot.t-frosttrail{background:#ffffff;box-shadow:0 0 10px #bfe9ff}
+.dot.t-petals{background:#ffb3d1;border-radius:60% 0 60% 0}
+.dot.t-comet{background:#ffe066;box-shadow:0 0 16px 4px #ffb000}
+.dot.t-shadow{background:#3b2a6b;box-shadow:0 0 18px 8px #3b2a6b;opacity:.7}
+.dot.t-lightning{background:#bfeaff;border-radius:0;clip-path:polygon(55% 0,25% 55%,48% 55%,40% 100%,78% 40%,54% 40%,66% 0);filter:drop-shadow(0 0 6px #7fd6ff)}
+.dot.t-starfall{background:#fff3c4;border-radius:0;clip-path:polygon(50% 0,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);filter:drop-shadow(0 0 6px #ffe066)}
+.dot.t-inferno{background:linear-gradient(#ffe066,#ff5a2e);border-radius:50% 50% 50% 50%/60% 60% 40% 40%;box-shadow:0 0 14px #ff5a2e}
+.dot.t-matrixtrail{background:#39ff8a;border-radius:2px;box-shadow:0 0 10px #39ff8a}
+
+/* ---------- more portals ---------- */
+.tile.exit.p-emerald:not(.locked)::before{background:conic-gradient(#00c46a,#6dffb3,#0a5c3a,#00c46a);box-shadow:0 0 26px #3ddc9799}
+.tile.exit.p-rubyrift:not(.locked)::before{background:conic-gradient(#ff3b5c,#ff8fb1,#7a0a20,#ff3b5c);box-shadow:0 0 26px #ff3b5c99}
+.tile.exit.p-whirlpool:not(.locked)::before{background:conic-gradient(#1561d6,#8fd3ff,#0a2a6b,#4fe3ff,#1561d6);box-shadow:0 0 26px #2f7bff99}
+.tile.exit.p-candy:not(.locked)::before{background:repeating-conic-gradient(#ff3b5c 0 30deg,#fff 30deg 60deg);box-shadow:0 0 22px #ff8fb199}
+.tile.exit.p-blackhole:not(.locked)::before{background:conic-gradient(#ffb000,#ff3b00,#2a0a00,#ffe066,#ffb000);box-shadow:0 0 30px #ff7a3daa;transform:scaleY(.55);animation:spinFlat 2.4s linear infinite}
+@keyframes spinFlat{from{transform:scaleY(.55) rotate(0)}to{transform:scaleY(.55) rotate(360deg)}}
+.tile.exit.p-blackhole::after{background:#000;inset:30%;box-shadow:0 0 12px #000}
+.tile.exit.p-stormgate:not(.locked)::before{background:conic-gradient(#2f7bff,#ffffff,#7fd6ff,#1561d6,#ffffff,#2f7bff);box-shadow:0 0 30px #7fd6ffcc;animation:spin 1.4s linear infinite,stormFlick 1.1s steps(2) infinite}
+@keyframes stormFlick{50%{filter:brightness(1.6)}}
+.tile.exit.p-infernogate:not(.locked)::before{background:conic-gradient(#ff3b00,#ffe066,#ff5a2e,#ffb000,#ff3b00);box-shadow:0 0 34px #ff5a2ecc,0 -8px 24px #ffb00088;animation:spin 1.8s linear infinite,flameGlow .4s ease-in-out infinite alternate}
+@keyframes flameGlow{to{filter:brightness(1.25) saturate(1.3)}}
+.tile.exit.p-starfield:not(.locked)::before{background:radial-gradient(circle,#ffffff 0 1.5px,transparent 2px) 0 0/8px 8px,radial-gradient(circle,#2a0f5c,#000 70%);box-shadow:0 0 26px #b06bffaa;animation:warp 1.2s linear infinite}
+@keyframes warp{from{background-size:4px 4px,100% 100%;transform:rotate(0)}to{background-size:16px 16px,100% 100%;transform:rotate(90deg)}}
+.tile.exit.p-frostgate:not(.locked)::before{background:conic-gradient(#e8fbff,#7fd6ff,#ffffff,#9ee8ff,#e8fbff);box-shadow:0 0 28px #bfe9ffcc;border-radius:22%;transform:rotate(45deg);animation:none}
+.tile.exit.p-cosmiceye:not(.locked)::before{background:conic-gradient(#6a3bd6,#ff5cf0,#2a0f5c,#b06bff,#6a3bd6);box-shadow:0 0 30px #b06bffcc}
+.tile.exit.p-cosmiceye::after{background:#f4f1ff;inset:22%;animation:eyeBlink 5s infinite}
+@keyframes eyeBlink{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.05)}}
+.tile .peye{display:none}
+.tile.exit.p-cosmiceye .peye{display:block;position:absolute;inset:38%;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff 0 12%,#000 16% 45%,#6a3bd6 48%,#b06bff 70%);transform:translate(var(--ex,0px),var(--ey,0px));transition:transform .3s;z-index:1}
+.tile.exit.p-cosmiceye.locked .peye{display:none}

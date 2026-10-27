@@ -210,6 +210,15 @@ t('Characters: at least 50 unique, each renders all four moods and tracking pupi
   }
   ['kitty', 'kingcat', 'neonking', 'skully', 'skullking', 'neonskull'].forEach((id) => assert.ok(Chars.ROSTER.find((c) => c.id === id), id));
 });
+t('Catalog: unique ids, valid auras, legendaries everywhere, active aura follows equipment', () => {
+  assert.strictEqual(new Set(Shop.CATALOG.map((c) => c.id)).size, Shop.CATALOG.length);
+  for (const c of Shop.CATALOG) if (c.aura) assert.ok(Shop.AURAS[c.aura], c.id);
+  for (const slot of ['face', 'orb', 'trail', 'portal']) assert.ok(Shop.CATALOG.filter((c) => c.slot === slot && c.rarity === 'legendary').length >= 4, slot);
+  const prog = Shop.init(P.defaults());
+  assert.strictEqual(Shop.activeAura(prog), null);
+  prog.owned.lightning = true; Shop.equip(prog, LEVELS, 'lightning'); assert.strictEqual(Shop.activeAura(prog), 'storm');
+  prog.owned.phoenix = true; Shop.equip(prog, LEVELS, 'phoenix'); assert.strictEqual(Shop.activeAura(prog), 'inferno', 'character aura wins');
+});
 t('Boosted runs cap at 2 stars; skip tickets unlock the next level without stars', () => {
   const prog = P.defaults();
   assert.strictEqual(P.applyClear(prog, LEVELS[0], { moves: LEVELS[0].par, collected: 0, assisted: true }, 0).stars, 2);

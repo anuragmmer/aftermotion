@@ -51,6 +51,7 @@
     lose() { [392, 330, 262].forEach((f, i) => tone(f, 0.3, 'sawtooth', 0.08, i * 0.14)); },
     star(i) { tone(784 + i * 196, 0.25, 'triangle', 0.18); },
     click() { tone(520, 0.04, 'square', 0.05); },
+    thunder() { noise(0.9, 0.5, 260, 60); tone(55, 0.8, 'sine', 0.35, 0.05, 35); },
     undo() { tone(500, 0.1, 'sine', 0.12, 0, 300); },
   };
   root.AMAudio = SFX;

@@ -147,6 +147,7 @@
       case 'cap': return '<path d="M20 ' + (t + 12) + ' Q50 ' + (t - 16) + ' 80 ' + (t + 12) + 'Z" fill="' + (c.accent2 || '#4fe3ff') + '"/><path d="M58 ' + (t + 10) + ' Q80 ' + (t + 6) + ' 94 ' + (t + 14) + ' Q76 ' + (t + 16) + ' 58 ' + (t + 14) + 'Z" fill="' + (c.accent2 || '#4fe3ff') + '" opacity=".85"/>';
       case 'fire': return '<path class="flame" d="M34 ' + (t + 8) + ' Q30 ' + (t - 10) + ' 40 ' + (t - 22) + ' Q40 ' + (t - 8) + ' 46 ' + (t - 6) + ' Q46 ' + (t - 24) + ' 56 ' + (t - 30) + ' Q54 ' + (t - 12) + ' 62 ' + (t - 10) + ' Q66 ' + (t - 22) + ' 64 ' + (t - 26) + ' Q74 ' + (t - 8) + ' 66 ' + (t + 8) + 'Z" fill="#ff7a3d"/>' +
         '<path class="flame f2" d="M42 ' + (t + 8) + ' Q42 ' + (t - 6) + ' 50 ' + (t - 14) + ' Q50 ' + (t - 4) + ' 58 ' + (t - 2) + ' Q60 ' + (t + 4) + ' 58 ' + (t + 8) + 'Z" fill="' + GOLD + '"/>';
+      case 'bolt': return '<path class="zap" d="M54 ' + (t - 30) + ' L40 ' + (t - 6) + ' L50 ' + (t - 6) + ' L44 ' + (t + 10) + ' L62 ' + (t - 14) + ' L52 ' + (t - 14) + ' L58 ' + (t - 30) + 'Z" fill="#ffe066" stroke="#fff6c4" stroke-width="1.5" stroke-linejoin="round"/>';
       default: return '';
     }
   }
@@ -164,6 +165,10 @@
     if (fx.includes('cape')) out.push('<path d="M22 80 L34 70 L40 88Z M78 80 L66 70 L60 88Z" fill="#7a1030"/>');
     if (fx.includes('sparkle')) out.push('<g class="twinkle">' + star(16, 26, 5, 1.6, '#fff') + star(86, 70, 4, 1.4, '#fff') + star(84, 22, 3.5, 1.2, '#fff') + '</g>');
     if (fx.includes('galaxy')) out.push('<circle cx="34" cy="' + (y + 20) + '" r="1.6" fill="#fff"/><circle cx="66" cy="' + (y - 18) + '" r="1.3" fill="#fff"/><circle cx="58" cy="' + (y + 24) + '" r="1.1" fill="#fff"/><circle cx="28" cy="' + (y - 10) + '" r="1.2" fill="#fff"/>');
+    if (fx.includes('electric')) out.push('<g class="arc"><path d="M8 ' + (y - 4) + ' L15 ' + (y + 4) + ' L10 ' + (y + 8) + ' L18 ' + (y + 18) + '" fill="none" stroke="#bfeaff" stroke-width="2.2" stroke-linejoin="round"/>' +
+      '<path d="M92 ' + (y - 10) + ' L85 ' + (y - 2) + ' L91 ' + (y + 3) + ' L83 ' + (y + 12) + '" fill="none" stroke="#bfeaff" stroke-width="2.2" stroke-linejoin="round"/></g>');
+    if (fx.includes('frost')) out.push('<g class="twinkle" stroke="#e8fbff" stroke-width="1.6" stroke-linecap="round">' + [[14, 30], [88, 64], [84, 20]].map(([x, yy]) => '<path d="M' + (x - 5) + ' ' + yy + ' H' + (x + 5) + ' M' + x + ' ' + (yy - 5) + ' V' + (yy + 5) + ' M' + (x - 3.5) + ' ' + (yy - 3.5) + ' L' + (x + 3.5) + ' ' + (yy + 3.5) + ' M' + (x + 3.5) + ' ' + (yy - 3.5) + ' L' + (x - 3.5) + ' ' + (yy + 3.5) + '"/>').join('') + '</g>');
+    if (fx.includes('wings')) out.push('<path class="wing" d="M18 60 Q2 50 0 30 Q12 40 22 44 Q8 36 8 22 Q20 34 26 48Z" fill="' + (c.accent || '#ffc24b') + '"/><path class="wing w2" d="M82 60 Q98 50 100 30 Q88 40 78 44 Q92 36 92 22 Q80 34 74 48Z" fill="' + (c.accent || '#ffc24b') + '"/>');
     if (fx.includes('shine') && !c.neon) out.push('<ellipse cx="34" cy="' + (top + 12) + '" rx="8" ry="4.5" fill="#fff" opacity=".28" transform="rotate(-25 34 ' + (top + 12) + ')"/>');
     return out.join('');
   }
@@ -176,7 +181,7 @@
     const F = c.neon ? 'fill="#140f2e" stroke="' + c.body + '" stroke-width="3.5"' : 'fill="' + c.body + '" stroke="#00000040" stroke-width="2"';
     const [h, fy] = head(c, F);
     const y = c.faceY || fy, my = y + (c.eyes === 'cyc' ? 20 : 16), top = TOP[c.head] || 24;
-    const cls = 'chr' + (c.neon ? ' neon' : '') + (c.prism ? ' prism' : '') + (o.cls ? ' ' + o.cls : '');
+    const cls = 'chr' + (c.neon ? ' neon' : '') + (c.prism ? ' prism' : '') + (c.glitch ? ' glitch' : '') + (o.cls ? ' ' + o.cls : '');
     return '<svg class="' + cls + '" viewBox="-6 -14 112 114" style="--neon:' + c.body + '" aria-hidden="true">' +
       h + extras(c, y, top) +
       '<g class="face-n e-n">' + eyes(c, y) + '</g>' + moodEyes(c, y) +
@@ -244,13 +249,36 @@
     R('galaxyslime', 'Galaxy Goo', 'epic', 2200, { head: 'slime', body: '#6a3bd6', eyes: 'star', eyeColor: '#ffe066', mouth: 'grin', fx: ['galaxy', 'sparkle'] }),
     R('fireimp', 'Blaze', 'epic', 2200, { head: 'devil', body: '#ff3b2e', accent: '#ffc24b', eyes: 'angry', mouth: 'fang', hat: 'fire' }),
     // legendary
-    R('neonking', 'Neon King Cat', 'legendary', 3500, { head: 'cat', body: '#4fe3ff', neon: true, eyes: 'cat', eyeColor: '#4fe3ff', line: '#140f2e', mouth: 'cat', hat: 'crown', crown: '#ffc24b', fx: ['whiskers', 'sparkle'] }),
-    R('goldskull', 'Golden Skull', 'legendary', { allStars: true }, { head: 'skull', body: '#ffcf4d', eyes: 'socket', eyeColor: '#ffffff', mouth: 'teeth', hat: 'crown', crown: '#fff3c4', fx: ['sparkle'] }),
-    R('royal', 'Royal Smiley', 'legendary', { allStars: true }, { head: 'round', body: '#ffc24b', eyes: 'star', eyeColor: '#fff3c4', mouth: 'grin', hat: 'crown', fx: ['sparkle'] }),
-    R('shadowcat', 'Shadow Cat', 'legendary', W(6), { head: 'cat', body: '#1a1230', eyes: 'cat', eyeColor: '#ff3b5c', line: '#000', mouth: 'flat', fx: ['whiskers', 'sparkle'] }),
-    R('rainbowcat', 'Prism Cat', 'legendary', { streak: 7 }, { head: 'cat', body: '#ff8fb1', eyes: 'heart', eyeColor: '#ff3b8a', mouth: 'cat', hat: 'crown', fx: ['whiskers', 'sparkle', 'blush'], prism: true }),
-    R('voidskull', 'Void Skull', 'legendary', W(5), { head: 'skull', body: '#b06bff', neon: true, eyes: 'socket', eyeColor: '#b06bff', line: '#b06bff', mouth: 'teeth', hat: 'horns', fx: ['sparkle'] }),
+    R('neonking', 'Neon King Cat', 'legendary', 3500, { head: 'cat', body: '#4fe3ff', neon: true, eyes: 'cat', eyeColor: '#4fe3ff', line: '#140f2e', mouth: 'cat', hat: 'crown', crown: '#ffc24b', fx: ['whiskers', 'sparkle'], aura: 'synth' }),
+    R('goldskull', 'Golden Skull', 'legendary', { allStars: true }, { head: 'skull', body: '#ffcf4d', eyes: 'socket', eyeColor: '#ffffff', mouth: 'teeth', hat: 'crown', crown: '#fff3c4', fx: ['sparkle'], aura: 'gold' }),
+    R('royal', 'Royal Smiley', 'legendary', { allStars: true }, { head: 'round', body: '#ffc24b', eyes: 'star', eyeColor: '#fff3c4', mouth: 'grin', hat: 'crown', fx: ['sparkle'], aura: 'gold' }),
+    R('shadowcat', 'Shadow Cat', 'legendary', W(6), { head: 'cat', body: '#1a1230', eyes: 'cat', eyeColor: '#ff3b5c', line: '#000', mouth: 'flat', fx: ['whiskers', 'sparkle'], aura: 'void' }),
+    R('rainbowcat', 'Prism Cat', 'legendary', { streak: 7 }, { head: 'cat', body: '#ff8fb1', eyes: 'heart', eyeColor: '#ff3b8a', mouth: 'cat', hat: 'crown', fx: ['whiskers', 'sparkle', 'blush'], prism: true, aura: 'aurora' }),
+    R('voidskull', 'Void Skull', 'legendary', W(5), { head: 'skull', body: '#b06bff', neon: true, eyes: 'socket', eyeColor: '#b06bff', line: '#b06bff', mouth: 'teeth', hat: 'horns', fx: ['sparkle'], aura: 'void' }),
+    // legendary · each one brings an aura that changes the whole game's atmosphere
+    R('stormcaller', 'Stormcaller', 'legendary', 4500, { head: 'dragon', body: '#2fd3ff', accent: '#bfeaff', neon: true, eyes: 'cat', eyeColor: '#ffe066', line: '#140f2e', mouth: 'fang', hat: 'bolt', fx: ['electric'], aura: 'storm' }),
+    R('thunderskull', 'Thunder Skull', 'legendary', 4000, { head: 'skull', body: '#ffe066', neon: true, eyes: 'socket', eyeColor: '#ffffff', line: '#ffe066', mouth: 'teeth', hat: 'bolt', fx: ['electric'], aura: 'storm' }),
+    R('phoenix', 'Phoenix', 'legendary', 4500, { head: 'owl', body: '#ff5a2e', accent: '#ffc24b', eyes: 'cat', eyeColor: '#fff3c4', mouth: 'beak', hat: 'fire', fx: ['wings', 'sparkle'], aura: 'inferno' }),
+    R('dragonemperor', 'Dragon Emperor', 'legendary', 5000, { head: 'dragon', body: '#ffb000', accent: '#ff3b2e', eyes: 'angry', mouth: 'fang', hat: 'crown', fx: ['sparkle', 'shine'], aura: 'inferno' }),
+    R('frostbite', 'Frostbite', 'legendary', 4500, { head: 'fox', body: '#dff6ff', accent: '#ffffff', eyes: 'cat', eyeColor: '#4fe3ff', mouth: 'smile', hat: 'crown', crown: '#bfe9ff', fx: ['frost', 'shine'], aura: 'frost' }),
+    R('cosmo', 'Cosmo Owl', 'legendary', 4000, { head: 'owl', body: '#3b2a8f', accent: '#6a3bd6', eyes: 'star', eyeColor: '#ffe066', line: '#fff', mouth: 'beak', fx: ['galaxy', 'sparkle'], aura: 'cosmos' }),
+    R('glitchcat', 'Glitch Cat', 'legendary', 4500, { head: 'cat', body: '#39ff8a', neon: true, eyes: 'visor', eyeColor: '#39ff8a', line: '#140f2e', mouth: 'flat', fx: ['whiskers'], glitch: true, aura: 'matrix' }),
+    R('kitsune', 'Aurora Kitsune', 'legendary', 5000, { head: 'fox', body: '#9ef0ff', accent: '#ffffff', prism: true, eyes: 'cat', eyeColor: '#ff8fb1', mouth: 'cat', fx: ['sparkle', 'shine'], aura: 'aurora' }),
+    R('sakura', 'Sakura Spirit', 'legendary', 3500, { head: 'bunny', body: '#ffd1e4', eyes: 'sleepy', mouth: 'cat', hat: 'flower', fx: ['blush', 'sparkle'], aura: 'sakura' }),
+    R('midnightdj', 'Midnight DJ', 'legendary', 4000, { head: 'squircle', body: '#ff5cf0', neon: true, eyes: 'shades', line: '#fff', mouth: 'smile', hat: 'phones', accent2: '#4fe3ff', aura: 'synth' }),
   ];
+  const AURAS = {
+    storm: { name: 'Thunderstorm', desc: 'Rain, thunder and lightning that strikes your echoes as they move.' },
+    inferno: { name: 'Inferno', desc: 'Rising embers; echoes burst into sparks when they step.' },
+    frost: { name: 'Blizzard', desc: 'Snowfall drifts over the game; steps leave frost.' },
+    cosmos: { name: 'Cosmos', desc: 'A twinkling starfield with shooting stars.' },
+    matrix: { name: 'The Code', desc: 'Falling green code; everything glitches a little.' },
+    aurora: { name: 'Aurora', desc: 'Northern lights wash over the sky.' },
+    sakura: { name: 'Sakura', desc: 'Cherry blossom petals drift down.' },
+    synth: { name: 'Synthwave', desc: 'Neon haze and a glowing retro horizon.' },
+    gold: { name: 'Gold Rush', desc: 'Golden dust glitters everywhere.' },
+    void: { name: 'The Void', desc: 'Light is slowly pulled toward the centre.' },
+  };
   const RARITY = { common: { label: 'Common', color: '#9aa6c8' }, rare: { label: 'Rare', color: '#4fe3ff' }, epic: { label: 'Epic', color: '#c49bff' }, legendary: { label: 'Legendary', color: '#ffc24b' } };
-  return { ROSTER, RARITY, render };
+  return { ROSTER, RARITY, AURAS, render };
 });
