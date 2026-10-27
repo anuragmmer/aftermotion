@@ -440,13 +440,9 @@
       { say: 'Every level ends at the spinning portal. Follow the corridor to reach it.', end: true },
     ],
     2: [
-      { say: 'This gold ring is <b>Echo</b>, your first echo. It repeats some of your moves, but not all of them.', spot: 'echo:1', ack: true },
-      { say: 'Every move you make goes onto Echo\'s tape (the 4 slots in the panel). Slot 1 is the one that counts.', spot: 'tape:1', ack: true },
-      { say: 'Press ' + arrHtml('RIGHT') + ' (right) once.', expect: 'RIGHT', spot: 'tape:1' },
-      { say: 'Your ' + arrHtml('RIGHT') + ' landed in slot 1, marked <b>COPIED</b>. The dotted line and dashed square on the board are its <b>trace</b>: the step it will take when the tape is full.', spot: 'pred:1', ack: true },
-      { say: 'Now make any 3 moves. They fill slots 2 to 4, and Echo ignores them. Watch it on your 4th move.', expect: 'fire', spot: 'tape:1' },
-      { say: 'Echo stepped ' + arrHtml('RIGHT') + ', along its trace, because that was the first of your 4 moves. The tape is empty again, so your next move is the new slot 1.', spot: 'echo:1', ack: true },
-      { say: 'Echo needs one more step right to reach the portal. Start the next group with ' + arrHtml('RIGHT') + ', then walk onto the portal yourself.', end: true },
+      { say: 'This gold ring is <b>Echo</b>. It copies only <b>some</b> of your moves. Each move you make goes onto its tape (the 4 slots); <b>slot 1</b> is the one it copies. Make a move: ' + arrHtml('RIGHT') + ' is a good start.', spot: 'echo:1', expect: 'any' },
+      { say: () => 'Your ' + tutHead() + ' landed in slot 1, marked <b>COPIED</b>. The dotted line on the board is Echo\'s <b>trace</b>: where it will step when the tape is full. Make 3 more moves; Echo ignores them.', spot: 'pred:1', expect: 'fire' },
+      { say: 'Echo copied slot 1 and took its step. The tape is empty again, so your next move is the new slot 1. Get Echo onto the portal, then walk onto it yourself. Stuck? Tap Plan, or Undo.', spot: 'echo:1', end: true },
     ],
     3: [
       { say: 'Plates and doors come in matching colours. Plate <b>a</b> opens door <b>A</b>, but only while something stands on the plate.', spot: 'plate:A', ack: true },
@@ -464,6 +460,9 @@
     31: [{ say: 'Flicker is back. Groups of 2 mean your 1st, 3rd, 5th… moves all reach it. Watch its tape: only 2 slots.', spot: 'tape:1', end: true }],
     41: [{ say: 'Mason never walks. A group starting with ' + arrHtml('DOWN') + ' makes it build on the plate below it.', spot: 'echo:1', end: true }],
   };
+  // the move currently sitting in slot 1 of the first echo's tape
+  const tutHead = () => { const e = G && G.S.echoes[0]; return e && e.batch[0] ? arrHtml(e.batch[0]) : 'move'; };
+  const tutText = (st) => (typeof st.say === 'function' ? st.say() : st.say);
   function arrHtml(d) { return '<span class="arr h">' + ({ UP: '↑', RIGHT: '→', DOWN: '↓', LEFT: '←' })[d] + '</span>'; }
   const tutStep = () => (G && G.tut ? G.tut.steps[G.tut.i] : null);
   function tutAdvance(events, meta) {
@@ -741,13 +740,18 @@
     $('#coach').classList.toggle('tut', !!st);
     if (st) {
       $('#coachTag').textContent = 'TUTORIAL ' + (G.tut.i + 1) + ' / ' + G.tut.steps.length;
-      $('#coachWhat').innerHTML = st.say; $('#coachWhat').className = '';
-      $('#coachNext').innerHTML = st.ack ? '<div><button class="btn gold" id="tutNext">Next</button></div>'
+      $('#coachWhat').innerHTML = tutText(st); $('#coachWhat').className = '';
+      $('#coachNext').innerHTML = st.ack ? '<div class="tut-ack"><button class="btn gold" id="tutNext">Got it</button><small>or just make a move</small></div>'
         : st.end ? nextLines(S).map((l) => '<div class="ln" style="--c:' + (l.color || 'var(--cyan)') + '"><span>' + l.h + '</span></div>').join('')
         : '<div class="ln"><span>' + (st.expect === 'RIGHT' ? 'Waiting for ' + arrHtml('RIGHT') : st.expect === 'fire' ? 'Keep moving: Echo follows its trace when the tape is full.' : 'Make any move.') + '</span></div>';
       const nb = $('#tutNext'); if (nb) nb.onclick = nextTut;
       spotEls(st.spot).forEach((el) => el && el.classList.add('spot'));
+      // on phones the coach sits below the controls, so the tip is also pinned to the bottom of the screen
+      $('#tutTip').hidden = false;
+      $('#tutTip').innerHTML = '<span class="coach-tag">TUTORIAL ' + (G.tut.i + 1) + ' / ' + G.tut.steps.length + '</span><p>' + tutText(st) + '</p>' + (st.ack ? '<button class="btn gold" id="tutNext2">Got it</button>' : '');
+      const nb2 = $('#tutNext2'); if (nb2) nb2.onclick = nextTut;
     } else {
+      $('#tutTip').hidden = true;
       $('#coachTag').textContent = 'COACH';
       $('#coachWhat').innerHTML = G.coach.h; $('#coachWhat').className = G.coach.c;
       $('#coachNext').innerHTML = nextLines(S).map((l) => '<div class="ln" style="--c:' + (l.color || 'var(--cyan)') + '"><span>' + l.h + '</span></div>').join('');
@@ -940,8 +944,8 @@
     if (busy() || G.S.status !== 'play') return;
     wake();
     const st = tutStep();
-    if (st && st.ack) { toast('Tap Next in the coach panel to continue.'); flashCoach(); return; }
-    if (st && /^(UP|RIGHT|DOWN|LEFT)$/.test(st.expect || '') && dir !== st.expect) { toast('For this step, press ' + ({ UP: '↑', RIGHT: '→', DOWN: '↓', LEFT: '←' })[st.expect] + '.'); flashCoach(); return; }
+    // tutorials never block play: making a move simply moves on past an explanation step
+    if (st && st.ack) { while (tutStep() && tutStep().ack) G.tut.i++; if (G.tut.i >= G.tut.steps.length) G.tut = null; }
     if (G.hop) { G.hop = false; }
     const r = AM.step(G.L, G.S, dir);
     if (!r.accepted) { fxBlocked(dir); say([{ h: blockedText(dir, r.events), c: 'bad' }]); renderPanel(); flashCoach(); return; }
@@ -1294,59 +1298,76 @@
 
   /* ---------- Echo Quiz: predict where the echo ends up ---------- */
   let quizView = null; // { q, picked, res } while showing an answered question
+  const groupChips = (q, cls) => '<div class="qgroups">' + q.moves.reduce((acc, d, i) => { (acc[Math.floor(i / q.B)] = acc[Math.floor(i / q.B)] || []).push(d); return acc; }, [])
+    .map((g, gi) => '<div class="qgroup' + (g.length < q.B ? ' partial' : '') + '"><small>' + (g.length < q.B ? 'Unfinished group' : 'Group ' + (gi + 1)) + '</small><div>' +
+      g.map((d, j) => '<span class="qm' + (j === 0 && g.length === q.B ? ' head' : '') + '" data-i="' + (gi * q.B + j) + '">' + AR[d] + '</span>').join('') + '</div></div>').join('') + '</div>';
   function rwQuiz(day) {
     const st = X.quizState(prog, day), dots = Array.from({ length: X.QUIZ.perDay }, (_, i) => '<i class="' + (i < st.hist.length ? (st.hist[i] ? 'ok' : 'no') : i === st.k ? 'cur' : '') + '"></i>').join('');
-    const head = '<div class="rw-head"><b>Echo Quiz</b><small>Five puzzles a day: read your moves, then tap where the echo ends up. Harder questions pay more.</small><div class="qdots">' + dots + '</div></div>';
+    const head = '<div class="rw-head"><b>Echo Quiz</b><small>Five puzzles a day. Read your moves, then tap the tile where the echo ends up. Harder questions pay more.</small><div class="qdots">' + dots + '</div></div>';
     if (st.done && !quizView) {
       $('#rwBody').innerHTML = head + '<div class="card quiz-done"><h3>' + st.right + ' / ' + X.QUIZ.perDay + ' correct today</h3><p>' + (st.right === X.QUIZ.perDay ? 'Perfect! You earned the bonus ' + X.QUIZ.perfect + ' coins and a Bronze chest.' : 'Get all five right for a ' + X.QUIZ.perfect + '-coin bonus and a Bronze chest.') + '</p><p class="dim">New puzzles in ' + untilTomorrow() + '.</p></div>';
       return;
     }
     const q = quizView ? quizView.q : X.quizQuestion(day, st.k);
+    if (!q) { $('#rwBody').innerHTML = head + '<div class="card">No puzzle today, sorry. Come back tomorrow.</div>'; return; }
     const name = q.kind === 'F' ? 'Flicker' : 'Echo', H = q.map.length, W = q.map[0].length;
     let cells = '';
     for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
       const c = q.map[y][x], oi = q.options.findIndex((o) => o.x === x && o.y === y);
-      let inner = c === 'P' ? orbHTML(prog.equip.orb) : c === 'X' ? '<div class="qexit"></div>' : (c === 'T' || c === 'F') ? '<div class="qecho ' + (c === 'T' ? 'qt' : 'qf') + '"><span>' + c.replace('T', 'E') + '</span></div>' : '';
-      let cls = 'qc' + (c === '#' ? ' wall' : '') + ((x + y) % 2 ? ' alt' : '');
+      let cls = 'qc' + (c === '#' ? ' wall' : '') + ((x + y) % 2 ? ' alt' : ''), inner = '';
       if (oi >= 0) {
         cls += ' opt';
         if (quizView) cls += oi === q.answer ? ' right' : oi === quizView.picked ? ' wrong' : ' dimopt';
-        inner += '<button class="qopt" data-o="' + oi + '"' + (quizView ? ' disabled' : '') + '>' + 'ABCD'[oi] + '</button>';
+        inner = '<button class="qopt" data-o="' + oi + '"' + (quizView ? ' disabled' : '') + ' aria-label="Answer ' + 'ABCD'[oi] + '"><b>' + 'ABCD'[oi] + '</b></button>';
       }
-      cells += '<div class="' + cls + '" data-x="' + x + '" data-y="' + y + '">' + inner + '</div>';
+      cells += '<div class="' + cls + '">' + inner + '</div>';
     }
-    const strip = q.moves.map((d, i) => (i && i % q.B === 0 ? '<span class="qsep"></span>' : '') + '<span class="qm' + (i % q.B === 0 ? ' head' : '') + '">' + AR[d] + '</span>').join('');
-    $('#rwBody').innerHTML = head + '<div class="quiz-layout"><div class="quiz-board" style="--w:' + (W - 2) + '">' + cells + '<div class="qghost" id="qGhost" hidden></div></div>' +
-      '<div class="card quiz-side"><span class="coach-tag">QUESTION ' + (q.k + 1) + ' · PAYS ' + X.QUIZ.pay[q.k] + ' COINS</span>' +
-      '<p>You (the orb) make these ' + q.moves.length + ' moves. <b>' + name + '</b> copies the <b>first move of every ' + q.B + '</b>' + (q.k > 0 ? ' and stays put if a wall is in the way' : '') + '. Where does ' + name + ' end up?</p>' +
-      '<div class="qstrip">' + strip + '</div><small class="dim">Groups of ' + q.B + ' are separated; the first of each group is highlighted after you answer.</small>' +
+    const at = (p) => 'left:' + ((p.x - 1) / (W - 2)) * 100 + '%;top:' + ((p.y - 1) / (H - 2)) * 100 + '%';
+    // the player and the echo sit on their own layer so the answer boxes never hide them
+    const pieces = '<div class="qpiece" id="qP" style="' + at(q.ptrace[0]) + '">' + orbHTML(prog.equip.orb) + '</div>' +
+      '<div class="qpiece" id="qE" style="' + at(q.trace[0]) + '"><div class="qecho ' + (q.kind === 'T' ? 'qt' : 'qf') + '"><span>' + (q.kind === 'T' ? 'E' : 'F') + '</span></div></div>';
+    $('#rwBody').innerHTML = head + '<div class="quiz-layout"><div class="quiz-board" style="--w:' + (W - 2) + ';--h:' + (H - 2) + '">' + cells + '<div class="qlayer">' + pieces + '</div></div>' +
+      '<div class="card quiz-side"><span class="coach-tag">QUESTION ' + (q.k + 1) + ' OF ' + X.QUIZ.perDay + ' · PAYS ' + X.QUIZ.pay[q.k] + ' COINS</span>' +
+      '<p class="q-ask">You (the orb) make these ' + q.moves.length + ' moves. <b>' + name + '</b> (the dashed ring) copies only the <b>first move of each group of ' + q.B + '</b>' + (q.k > 0 ? ', and stays put if a wall is in the way' : '') + '.</p>' +
+      groupChips(q) + '<p class="q-ask"><b>Where does ' + name + ' end up?</b> Tap A, B, C or D on the board.</p>' +
       '<div id="qResult"></div></div></div>';
     $$('#rwBody .qopt').forEach((b) => (b.onclick = () => {
+      if (quizView) return;
       const pick = +b.dataset.o, res = X.quizAnswer(prog, day, pick); if (!res) return;
       persist(); quizView = { q, picked: pick, res };
       if (res.ok) { SFX.win(); buzz(30); } else SFX.echoBlocked();
       rwQuiz(day); quizReplay(q, res);
+      const rr = $('#qResult'); if (rr && rr.getBoundingClientRect().bottom > window.innerHeight) rr.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'nearest' });
     }));
-    if (quizView) quizReplay(q, quizView.res, true);
   }
   function quizReplay(q, res, still) {
-    $('#rwBody .qstrip').classList.add('revealed');
-    const g = $('#qGhost'), board = $('#rwBody .quiz-board'), W = q.map[0].length - 2;
-    const place = (p) => { g.style.left = ((p.x - 1) / W) * 100 + '%'; g.style.top = ((p.y - 1) / (q.map.length - 2)) * 100 + '%'; };
-    g.hidden = false; g.style.width = 100 / W + '%'; g.style.height = 100 / (q.map.length - 2) + '%';
-    const name = q.kind === 'F' ? 'Flicker' : 'Echo', st = X.quizState(prog, today());
-    const heads = q.heads.map((d) => AR[d]).join(' ');
-    $('#qResult').innerHTML = '<div class="q-res ' + (res.ok ? 'ok' : 'no') + '"><b>' + (res.ok ? 'Correct! +' + res.coins + ' coins' : 'Not quite.') + '</b>' +
-      '<span>' + name + ' only copied the first move of each group: ' + (heads || 'none (no group was complete)') + '. It ends on <b>' + 'ABCD'[q.answer] + '</b>.</span>' +
+    const name = q.kind === 'F' ? 'Flicker' : 'Echo', st = X.quizState(prog, today()), W = q.map[0].length - 2, H = q.map.length - 2;
+    const pe = $('#qP'), ee = $('#qE');
+    const place = (el, p) => { el.style.left = ((p.x - 1) / W) * 100 + '%'; el.style.top = ((p.y - 1) / H) * 100 + '%'; };
+    const why = q.groups.map((g, i) => '<li>Group ' + (i + 1) + ' starts with ' + AR[g.head] + ': ' + name + (g.stepped ? ' steps ' + AR[g.head] + '.' : ' tries ' + AR[g.head] + ' but a wall is in the way, so it stays put.') + '</li>').join('');
+    $('#qResult').innerHTML = '<div class="q-res ' + (res.ok ? 'ok' : 'no') + '"><b>' + (res.ok ? 'Correct! +' + res.coins + ' coins' : 'Not quite: it was ' + 'ABCD'[q.answer] + '.') + '</b>' +
+      '<ul class="q-why">' + why + (q.moves.length % q.B ? '<li>The last ' + (q.moves.length % q.B) + ' move(s) are an unfinished group, so ' + name + ' has not acted on them yet.</li>' : '') + '</ul>' +
       (res.perfect ? '<span class="gold-t">Perfect day! +' + X.QUIZ.perfect + ' bonus coins and a Bronze chest.</span>' : '') +
-      '<div class="row">' + (st.done ? '<button class="btn gold" id="qDone">See results</button>' : '<button class="btn gold" id="qNext">Next question</button>') + '</div></div>';
+      '<div class="row"><button class="btn" id="qWatch"><svg><use href="#i-play"/></svg>Watch again</button>' + (st.done ? '<button class="btn gold" id="qDone">See results</button>' : '<button class="btn gold" id="qNext">Next question<svg><use href="#i-play"/></svg></button>') + '</div></div>';
     on('qNext', () => { quizView = null; renderRewards(); });
     on('qDone', () => { quizView = null; renderRewards(); });
+    on('qWatch', () => quizReplay(q, res));
     coins();
-    if (still || reduced()) { place(q.trace[q.trace.length - 1]); return; }
-    let i = 0; place(q.trace[0]);
-    const tick = () => { if (!g.isConnected) return; i++; if (i >= q.trace.length) return; place(q.trace[i]); const m = $$('#rwBody .qm')[i - 1]; if (m) { m.classList.add('now'); setTimeout(() => m.classList.remove('now'), 300); } SFX.tape(i % 5); setTimeout(tick, 320); };
-    setTimeout(tick, 400);
+    const last = q.trace.length - 1;
+    if (still || reduced()) { place(pe, q.ptrace[last]); place(ee, q.trace[last]); return; }
+    // replay: you move one step at a time; the echo moves only when a group completes
+    let i = 0; place(pe, q.ptrace[0]); place(ee, q.trace[0]);
+    const token = (q._tok = (q._tok || 0) + 1);
+    const tick = () => {
+      if (!pe.isConnected || token !== q._tok) return;
+      i++; if (i > last) return;
+      place(pe, q.ptrace[i]);
+      const chip = $('#rwBody .qm[data-i="' + (i - 1) + '"]'); $$('#rwBody .qm.now').forEach((c) => c.classList.remove('now')); if (chip) chip.classList.add('now');
+      const moved = q.trace[i].x !== q.trace[i - 1].x || q.trace[i].y !== q.trace[i - 1].y;
+      if (i % q.B === 0) { place(ee, q.trace[i]); ee.classList.remove('act'); void ee.offsetWidth; ee.classList.add('act'); (moved ? SFX.fire : SFX.echoBlocked)(); } else SFX.tape(i % q.B);
+      setTimeout(tick, i % q.B === 0 ? 650 : 380);
+    };
+    setTimeout(tick, 500);
   }
 
   /* ---------- Echo Garden: your collection earns coins while you are away ---------- */
@@ -1823,6 +1844,9 @@
     clearTimeout(rt); rt = setTimeout(() => { if (screen === 'game' && fit()) render(true); }, 120);
   });
 
+  // the pinned tutorial tip only shows while the coach panel itself is out of view
+  if (window.IntersectionObserver) new IntersectionObserver((en) => document.body.classList.toggle('coach-off', !en[0].isIntersecting), { threshold: 0.6 }).observe($('#coach'));
+  else document.body.classList.add('coach-off');
   // boot
   Amb.init();
   applySettings();

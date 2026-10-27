@@ -38,12 +38,12 @@
       const map = grid.map((r) => r.join(''));
       const r0 = AM.loadLevel({ id: 0, name: 'quiz', map, mode: 'through' });
       let L = r0.level, S = r0.state;
-      const moves = [], trace = [{ x: S.echoes[0].x, y: S.echoes[0].y }];
+      const moves = [], trace = [{ x: S.echoes[0].x, y: S.echoes[0].y }], ptrace = [{ x: S.player.x, y: S.player.y }];
       let tries = 0;
       while (moves.length < Q.moves && tries++ < 300) {
         const d = DIRS[Math.floor(rnd() * 4)], r = AM.step(L, S, d);
         if (!r.accepted || r.state.status !== 'play') continue;
-        S = r.state; moves.push(d); trace.push({ x: S.echoes[0].x, y: S.echoes[0].y });
+        S = r.state; moves.push(d); trace.push({ x: S.echoes[0].x, y: S.echoes[0].y }); ptrace.push({ x: S.player.x, y: S.player.y });
       }
       if (moves.length < Q.moves) continue;
       const ans = trace[trace.length - 1], start = trace[0];
@@ -60,7 +60,11 @@
       // the answer should not be trivially "it never moved"
       if (same(ans, start)) continue;
       for (let i = opts.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [opts[i], opts[j]] = [opts[j], opts[i]]; }
-      return { k, map, moves, kind: Q.kind, B, trace, options: opts, answer: opts.findIndex((o) => same(o, ans)), heads: groups.map((g) => g[0]) };
+      // what happened to each complete group: the echo tried its first move and either stepped or hit a wall
+      const outcome = groups.map((g, gi) => { const a = trace[gi * B + B - 1], b = trace[gi * B + B]; return { moves: g, head: g[0], stepped: !same(a, b) }; });
+      // the board shows no portal: it plays no part in the question
+      const shown = map.map((row) => row.replace('X', '.'));
+      return { k, map: shown, moves, kind: Q.kind, B, trace, ptrace, options: opts, answer: opts.findIndex((o) => same(o, ans)), heads: groups.map((g) => g[0]), groups: outcome };
     }
     return null;
   }

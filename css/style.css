@@ -980,3 +980,40 @@ body[data-aura=aurora] .board-frame{box-shadow:inset 0 4px 0 var(--wallHi),inset
 .demo-tape.fire span.one{animation:dAct .45s var(--ease-pop)}.dluck{color:var(--gold)!important;margin-left:8px}
 .demo-cap{margin:0;min-height:2.8em;font-weight:800;color:#fff;max-width:440px}.demo-cap.pop{animation:dCap .4s ease-out}@keyframes dCap{from{opacity:0;transform:translateY(6px)}}
 @media (max-width:980px){.clover-banner{top:8px;transform:translateX(-50%);font-size:12.5px;padding:6px 12px 6px 8px}.clover-banner svg{width:20px;height:20px}}
+
+/* ---------- Echo Quiz v2: answer frames never hide the pieces ---------- */
+.quiz-board{position:relative}
+.qlayer{position:absolute;inset:0;pointer-events:none;z-index:3}
+.qpiece{position:absolute;width:calc(100% / var(--w));height:calc(100% / var(--h));transition:left .3s var(--ease-pop),top .3s var(--ease-pop)}
+.qpiece .orb{inset:22%}
+.qpiece .qecho{inset:12%}
+.qpiece#qE{z-index:2}
+#qE.act .qecho{animation:dAct .5s var(--ease-pop)}
+.qopt{position:absolute;inset:5%;border-radius:12px;border:3px dashed var(--gold);background:#ffc24b14;cursor:pointer;z-index:1;padding:0;font:inherit;transition:background .15s,transform .15s}
+.qopt b{position:absolute;top:3px;left:3px;width:clamp(22px,4.5vw,30px);height:clamp(22px,4.5vw,30px);border-radius:50%;background:var(--gold);color:#2a1a00;font:400 clamp(13px,2.6vw,18px)/1 var(--disp);display:flex;align-items:center;justify-content:center;box-shadow:0 3px 0 #8a5c00}
+.qopt:hover:not(:disabled){background:#ffc24b40;transform:scale(1.04)}
+.qc.right .qopt{border-style:solid;border-color:var(--mint);background:#6dffb330}.qc.right .qopt b{background:var(--mint);box-shadow:0 3px 0 #1a7a52}
+.qc.wrong .qopt{border-style:solid;border-color:var(--pink);background:#ff5c8a30}.qc.wrong .qopt b{background:var(--pink);color:#fff;box-shadow:0 3px 0 #7a0f3a}
+.qc.dimopt .qopt{opacity:.3}
+.qc{overflow:visible}
+.qgroups{display:flex;flex-wrap:wrap;gap:8px}
+.qgroup{display:flex;flex-direction:column;gap:4px;background:var(--bg);border-radius:12px;padding:6px 8px 8px}
+.qgroup small{font-size:10.5px;font-weight:900;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+.qgroup div{display:flex;gap:4px}
+.qgroup.partial{opacity:.7;border:1px dashed var(--line)}
+.qm.head{box-shadow:inset 0 0 0 2px var(--gold);color:var(--gold)}
+.qm.now{transform:scale(1.25);background:var(--cyan);color:#05202a}
+.q-ask{margin:0}
+.q-why{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:13.5px;color:#d9d3ff}
+.q-res .row{gap:8px;flex-wrap:wrap}
+@media (max-width:640px){#rwTabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:6px;margin:0 -12px;padding-left:12px;padding-right:12px}#rwTabs::-webkit-scrollbar{display:none}#rwTabs .tab{flex:none}}
+
+/* ---------- tutorial: never blocking; tip card pinned to the bottom on phones ---------- */
+.tut-ack{display:flex;align-items:center;gap:10px}.tut-ack small{color:var(--dim);font-weight:800}
+.tut-tip{display:none}
+@media (max-width:980px){
+  body.coach-off .tut-tip:not([hidden]){display:flex;position:fixed;z-index:8;left:10px;right:10px;bottom:10px;flex-direction:column;gap:6px;padding:12px 14px;border-radius:18px;background:#1b1440f5;box-shadow:0 0 0 2px var(--gold),0 0 24px #ffc24b55,0 10px 30px #000a;animation:bannerIn2 .4s var(--ease-pop)}
+  .tut-tip p{margin:0;font-weight:800;font-size:14.5px;line-height:1.4}
+  .tut-tip .btn{align-self:flex-start;min-height:40px}
+  body.coach-off #game:has(.tut-tip:not([hidden])) .game-body{padding-bottom:150px}
+}
