@@ -329,4 +329,27 @@ t('Login calendar: one gift per day, 7-day cycle, never resets', () => {
   assert.strictEqual(X.calendarState(prog, '2026-12-14').step, 0, 'cycle repeats after day 7');
   assert.ok(prog.chestQueue.some((c) => c.tier === 'gold'));
 });
+const DM = require('../js/demos.js');
+t('Demo clips: every intro clip plays through the engine and shows what its captions promise', () => {
+  for (const [k, d] of Object.entries(DM.DEMOS)) {
+    let { level: L, state: S } = AM.loadLevel({ id: 0, map: d.map, exitLock: d.exitLock, luck0: d.luck0 });
+    let hopped = false, helper = false;
+    for (const tk of DM.tokens(d.moves)) {
+      let r;
+      if (tk === 'F') { r = AM.activateFavour(L, S); assert.ok(r.ok, k + ' favour'); }
+      else if (tk[0] === 'H') { const [x, y] = tk.slice(1, -1).split(',').map(Number); r = AM.hop(L, S, S.echoes[0].id, x, y); assert.ok(r.ok, k + ' hop'); hopped = true; }
+      else { r = AM.step(L, S, { U: 'UP', R: 'RIGHT', D: 'DOWN', L: 'LEFT' }[tk]); assert.ok(r.accepted, k + ' move ' + tk + ' accepted'); }
+      S = r.state; if (S.helpers.length) helper = true;
+    }
+    const e = d.expect;
+    if (e.won) assert.strictEqual(S.status, 'won', k);
+    if (e.echo) assert.deepStrictEqual([S.echoes[0].x, S.echoes[0].y], e.echo, k);
+    if (e.favoured) assert.strictEqual(S.echoes[0].state, 'FAVOURED', k);
+    if (e.helper) assert.ok(helper && S.open.A, k);
+    if (e.blocks) assert.strictEqual(S.blocks.filter((b) => b.kind === 'temp').length, e.blocks, k);
+    if (e.corruption) assert.ok(S.blocks.some((b) => b.kind === 'corr'), k);
+    if (e.hopped) assert.ok(hopped, k);
+  }
+  for (const id of Object.keys(DM.FIRST)) assert.ok(DM.DEMOS[DM.FIRST[id]] && LEVELS[id - 1]);
+});
 console.log(`\n${pass} passed`);

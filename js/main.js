@@ -2,7 +2,7 @@
  * Rules live in engine.js, rewards in progress.js; this file only presents state and sends commands. */
 (function () {
   'use strict';
-  const AM = window.AM, LEVELS = window.AMLevels, P = window.AMProgress, SFX = window.AMAudio, Shop = window.AMShop, Chars = window.AMChars, Amb = window.AMAmbient, Cos = window.AMCosmetics, R = window.AMRewards, X = window.AMExtras;
+  const AM = window.AM, LEVELS = window.AMLevels, P = window.AMProgress, SFX = window.AMAudio, Shop = window.AMShop, Chars = window.AMChars, Amb = window.AMAmbient, Cos = window.AMCosmetics, R = window.AMRewards, X = window.AMExtras, DM = window.AMDemos;
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
   const ROT = { UP: 0, RIGHT: 90, DOWN: 180, LEFT: 270 };
@@ -287,16 +287,19 @@
     const d = G.def;
     openModal('<div class="kicker">WORLD ' + d.world + ' · LEVEL ' + d.id + '</div><h2>' + esc(d.name) + '</h2>' +
       '<div class="lesson-badge big"><svg><use href="#i-bulb"/></svg><span>' + esc(d.lesson) + '</span></div>' +
+      (DM.FIRST[d.id] ? '<div class="demo" id="lcDemo"></div>' : '') +
       '<p class="lesson-text">' + esc(d.intro) + '</p><p class="plan" id="lcPlanText" hidden>' + esc(d.plan) + '</p>' +
       '<div class="row"><button class="btn" id="lcPlan">Show plan</button><button class="btn gold big" id="lcGo"><svg><use href="#i-play"/></svg>Start</button></div>', () => {
       on('lcPlan', () => { const p = $('#lcPlanText'); p.hidden = !p.hidden; $('#lcPlan').textContent = p.hidden ? 'Show plan' : 'Hide plan'; });
       on('lcGo', () => { closeModal(); renderPanel(); });
+      if (DM.FIRST[d.id]) playDemo($('#lcDemo'), DM.FIRST[d.id]);
     });
   }
   function planSheet() {
     const d = G.def;
     openModal('<div class="kicker">LEVEL ' + d.id + ' · PLAN</div><h2>' + esc(d.name) + '</h2><div class="lesson-badge"><svg><use href="#i-bulb"/></svg><span>' + esc(d.lesson) + '</span></div>' +
-      '<p class="plan">' + esc(d.plan) + '</p><div class="row"><button class="btn gold big" id="psOk">Back to the level</button></div>', () => on('psOk', closeModal));
+      (DM.FIRST[d.id] ? '<div class="demo" id="psDemo"></div>' : '') +
+      '<p class="plan">' + esc(d.plan) + '</p><div class="row"><button class="btn gold big" id="psOk">Back to the level</button></div>', () => { on('psOk', closeModal); if (DM.FIRST[d.id]) playDemo($('#psDemo'), DM.FIRST[d.id]); });
   }
 
   /* ---------- try-on: now and then a level lends you a cosmetic you don't own yet ---------- */
@@ -356,6 +359,78 @@
     const t = G.trial; if (!t || t.left !== TRY.moves) return;
     const it = t.item;
     say([{ h: '✦ Try-on! For your next ' + TRY.moves + ' moves you are using <b>' + esc(it.name) + '</b>, ' + (/^[aeiou]/i.test(Chars.RARITY[it.rarity].label) ? 'an ' : 'a ') + Chars.RARITY[it.rarity].label.toLowerCase() + ' ' + SLOT_NAME[it.slot] + (it.aura ? ' with its ' + esc(Shop.AURAS[it.aura].name) + ' aura' : '') + '. ' + (it.gate ? 'Legendary: it has to be earned.' : 'Like it? It is ' + Math.round(TRY.discount * 100) + '% off while you are in this level.'), c: 'gold' }]);
+  }
+
+  /* ---------- demo clips: a looping mini board that shows a new mechanic in action ---------- */
+  function playDemo(box, key) {
+    const d = DM.DEMOS[key]; if (!box || !d) return;
+    const H = d.map.length - 2, W = d.map[0].length - 2, toks = DM.tokens(d.moves);
+    box.innerHTML = '<div class="demo-head"><span class="coach-tag">▶ HOW IT WORKS</span><b>' + esc(d.title) + '</b></div>' +
+      '<div class="demo-board" style="--w:' + W + ';--h:' + H + '"><div class="demo-tiles"></div><div class="demo-actors"></div><div class="demo-key"></div></div>' +
+      '<div class="demo-tape"></div><p class="demo-cap"></p>';
+    const tiles = box.querySelector('.demo-tiles'), actors = box.querySelector('.demo-actors'), keyEl = box.querySelector('.demo-key'), tapeEl = box.querySelector('.demo-tape'), cap = box.querySelector('.demo-cap');
+    let L, S, i, els;
+    const pos = (el, x, y) => { el.style.left = ((x - 1) / W) * 100 + '%'; el.style.top = ((y - 1) / H) * 100 + '%'; };
+    function reset() {
+      const r = AM.loadLevel({ id: 0, map: d.map, mode: 'through', exitLock: d.exitLock, luck0: d.luck0 }); L = r.level; S = r.state; i = 0;
+      actors.innerHTML = ''; els = new Map();
+      let t = '';
+      for (let y = 1; y <= H; y++) for (let x = 1; x <= W; x++) {
+        const k = AM.key(x, y);
+        let cls = 'dt ' + (L.tiles[y][x] === '#' ? 'wall' : (x + y) % 2 ? 'alt' : ''), lbl = '', st = '';
+        if (L.plates[k]) { cls += ' plate'; lbl = L.plates[k].toLowerCase(); st = '--pc:' + PLATE_COLOR[L.plates[k]]; }
+        if (L.doors[k]) { cls += ' door'; lbl = L.doors[k]; st = '--pc:' + PLATE_COLOR[L.doors[k]]; }
+        if (AM.isExit(L, x, y)) cls += ' exit';
+        t += '<div class="' + cls + '" data-k="' + k + '" style="' + st + '">' + (lbl ? '<span>' + lbl + '</span>' : '') + '</div>';
+      }
+      tiles.innerHTML = t;
+      draw(); caption(0);
+    }
+    function actor(k, cls, html, x, y) {
+      let el = els.get(k);
+      if (!el) { el = document.createElement('div'); el.className = 'da ' + cls; el.innerHTML = html; actors.appendChild(el); els.set(k, el); el._seen = 0; }
+      el.className = 'da ' + cls; pos(el, x, y); el._seen = i + 1; return el;
+    }
+    function draw() {
+      for (const el of els.values()) el._seen = 0;
+      S.coins.forEach((c) => actor('c' + c.x + ',' + c.y, 'dcoin', '<i></i>', c.x, c.y));
+      S.blocks.forEach((b, n) => actor(b.kind + (b.kind === 'push' ? n : b.x + ',' + b.y), b.kind === 'push' ? 'dcrate' : b.kind === 'temp' ? 'dtemp' : 'dcorr', '<i></i>', b.x, b.y));
+      S.helpers.forEach((h) => actor('h' + h.id, 'dhelper', '<i></i>', h.x, h.y));
+      if (S.enemy) { actor('en', 'denemy', '<i></i>', S.enemy.x, S.enemy.y); if (S.enemy.state === 'TELEGRAPH' && S.enemy.target) actor('tg', 'dtele', '<b>' + S.enemy.t + '</b>', S.enemy.target.x, S.enemy.target.y).querySelector('b').textContent = S.enemy.t; }
+      S.echoes.forEach((e) => actor('e' + e.id, 'decho e-' + e.type + (e.state === 'FAVOURED' ? ' fav' : ''), '<span>' + ECHO_INFO[e.type].glyph + '</span>', e.x, e.y));
+      actor('p', 'dplayer', orbHTML(look('orb')), S.player.x, S.player.y);
+      for (const [k, el] of els) if (!el._seen) { el.remove(); els.delete(k); }
+      tiles.querySelectorAll('.dt.plate').forEach((el) => el.classList.toggle('on', !!S.plateActive[L.plates[el.dataset.k]]));
+      tiles.querySelectorAll('.dt.door').forEach((el) => el.classList.toggle('open', !!S.open[L.doors[el.dataset.k]]));
+      const ex = tiles.querySelector('.dt.exit'); if (ex) ex.classList.toggle('locked', !AM.exitReady(L, S));
+      const e = S.echoes[0];
+      if (e && e.type !== 'keeper') {
+        const size = e.counter === 0 ? AM.batchSize(e) : e.activeB;
+        tapeEl.innerHTML = '<small>' + ECHO_INFO[e.type].name + '\'s tape</small>' + Array.from({ length: size }, (_, n) => '<span class="' + (n === 0 ? 'one' : '') + (e.batch[n] ? ' f' : '') + '">' + (e.batch[n] ? AR[e.batch[n]] : n === 0 ? '1' : '') + '</span>').join('');
+      } else tapeEl.innerHTML = e ? '<small>Keeper: helper every 3 moves · ' + (e.counter) + '/3</small>' : '<small>Luck ' + S.luck + '/100</small>';
+      if (d.luck0 !== undefined) tapeEl.innerHTML += '<small class="dluck">Luck ' + S.luck + '/100</small>';
+    }
+    function caption(n) { if (d.caps[n] !== undefined) { cap.textContent = d.caps[n]; cap.classList.remove('pop'); void cap.offsetWidth; cap.classList.add('pop'); } }
+    function tick() {
+      if (!box.isConnected) return;
+      if (i >= toks.length) { setTimeout(() => { if (box.isConnected) { reset(); setTimeout(tick, 1100); } }, 1700); return; }
+      const tk = toks[i]; let r, label;
+      if (tk === 'F') { r = AM.activateFavour(L, S); r.accepted = r.ok; label = 'F · Favour'; }
+      else if (tk[0] === 'H') { const [x, y] = tk.slice(1, -1).split(',').map(Number); r = AM.hop(L, S, S.echoes[0].id, x, y); r.accepted = r.ok; label = 'H · Hop'; }
+      else { r = AM.step(L, S, { U: 'UP', R: 'RIGHT', D: 'DOWN', L: 'LEFT' }[tk]); label = AR[{ U: 'UP', R: 'RIGHT', D: 'DOWN', L: 'LEFT' }[tk]]; }
+      if (r.accepted) S = r.state;
+      i++;
+      keyEl.textContent = label; keyEl.classList.remove('press'); void keyEl.offsetWidth; keyEl.classList.add('press');
+      draw(); caption(i);
+      if (r.events.some((e) => e.type === 'ECHO_MOVED' || e.type === 'BUILD' || e.type === 'HOP' || (e.type === 'HELPER' && /sends/.test(e.text)))) {
+        const e0 = S.echoes[0], el = els.get('e' + (e0 && e0.id)); if (el) { el.classList.remove('act'); void el.offsetWidth; el.classList.add('act'); }
+        tapeEl.classList.remove('fire'); void tapeEl.offsetWidth; tapeEl.classList.add('fire');
+      }
+      setTimeout(tick, tk === 'F' || tk[0] === 'H' ? 1200 : 900);
+    }
+    reset();
+    if (reduced()) { cap.textContent = Object.values(d.caps).join(' '); return; }
+    setTimeout(tick, 1000);
   }
 
   /* ---------- tutorials: scripted, hands-on first steps ---------- */
