@@ -40,5 +40,45 @@
   "par": 31,
   "states": 33402,
   "path": "UURRLRLRLRDULRDULRLDURDUDUDRRDD"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "##########",
+   "#Z.##..A.#",
+   "#.P#..a#X#",
+   "#F.....#.#",
+   "#..#..##.#",
+   "##########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "F"
+  ],
+  "par": 14,
+  "states": 72942,
+  "path": "UDDRRURDRUUH(6,2)RRD"
+ },
+ {
+  "id": 0,
+  "name": "gen",
+  "map": [
+   "##########",
+   "#......#.#",
+   "#...T.Z#X#",
+   "#.#a.P.A.#",
+   "#..#...#.#",
+   "##########"
+  ],
+  "mode": "through",
+  "required": [],
+  "needs": [
+   "T"
+  ],
+  "par": 14,
+  "states": 2545,
+  "path": "DUUULRRDUDDRRU"
  }
 ]

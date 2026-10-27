@@ -142,12 +142,16 @@ function candidate(world, rng) {
   let r;
   try { r = RECIPES[world](rng); } catch (e) { return null; }
   if (!r) return null;
+  // a recipe can overwrite a key tile; skip anything without a player, a portal and the right holders
+  const flat = r.map.map((row) => row.join('')).join('');
+  if (!flat.includes('P') || !flat.includes('X')) return null;
   const def = { id: 0, name: 'gen', map: r.map.map((row) => row.join('')), mode: r.mode, required: r.required, needs: r.needs };
   if (r.luck0) def.luck0 = r.luck0;
   if (r.exitLock) def.exitLock = r.exitLock;
   if (r.coins) def.needs = def.needs.concat('favour');
   // time-boxed: anything the solver cannot settle quickly is skipped (it would be too slow to verify)
-  const s = solve(def, 400000, 6000);
+  let s;
+  try { s = solve(def, 400000, 6000); } catch (e) { return null; }
   if (s.result !== 'win' || s.moves < 8) return null;
   // keep the elements the level truly needs; the recipe's core ones (listed first in 'core') must be among them
   const needed = def.needs.filter((n) => solve(ABLATE[n](def), 400000, 6000).result === 'stuck');
