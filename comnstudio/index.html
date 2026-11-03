@@ -11,6 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;1,9..144,300;1,9..144,400&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script>document.documentElement.classList.add("js")</script>
 </head>
 <body>
 <div class="bg" aria-hidden="true"><i class="glow g1"></i><i class="glow g2"></i><i class="grain"></i></div>
@@ -30,8 +31,8 @@
 
     <h1 class="statement" aria-live="off">
       <span class="sr">We can sell that Darjeeling tea. And that Nilgiri tea too.</span>
-      <span class="line" aria-hidden="true">We can sell that <span class="slot" id="slotA"></span>.</span>
-      <span class="line" aria-hidden="true">And that <span class="slot" id="slotB"></span> too.</span>
+      <span class="line" aria-hidden="true">We can sell that <span class="nb"><span class="slot" id="slotA"><span class="word">Darjeeling tea</span></span><span class="tail">.</span></span></span>
+      <span class="line" aria-hidden="true">And that <span class="nb"><span class="slot" id="slotB"><span class="word">Nilgiri tea</span></span><span class="tail"> too.</span></span></span>
     </h1>
 
     <div class="hero-foot">
@@ -42,7 +43,7 @@
       </div>
     </div>
 
-    <div class="ticks" id="ticks" role="tablist" aria-label="Scenes"></div>
+    <div class="ticks" id="ticks" role="group" aria-label="Choose a scene"></div>
   </section>
 
   <section class="band" aria-hidden="true">

@@ -44,19 +44,22 @@
   const padEm = () => parseFloat(getComputedStyle(slots[0]).fontSize) * 0.16;
   const setWidth = (slot, text) => { slot.style.width = (measure(slot, text) + padEm()) + "px"; };
 
+  // Only transform + opacity are animated. The slot snaps to its new width and the text after it
+  // (the "tail") starts at its old position and glides across, so the layout never animates.
   const swap = (slot, text, delay = 0) => {
     const old = slot.querySelector(".word:not(.leaving)");
     const next = makeWord(text);
     slot.appendChild(next);
     const nextW = measure(slot, text) + padEm();
     const fromW = slot.getBoundingClientRect().width;
+    const tail = slot.nextElementSibling;
     const done = [];
-
-    // width glides so the punctuation / "too." after the slot slides smoothly
-    const wAnim = slot.animate([{ width: fromW + "px" }, { width: nextW + "px" }],
-      { duration: 900, delay, easing: "cubic-bezier(.65,0,.2,1)", fill: "both" });
     slot.style.width = nextW + "px";
-    done.push(wAnim.finished.then(() => wAnim.cancel()));
+
+    if (tail && !reduce.matches && Math.abs(fromW - nextW) > 0.5) {
+      done.push(tail.animate([{ transform: `translateX(${fromW - nextW}px)` }, { transform: "translateX(0)" }],
+        { duration: 900, delay, easing: "cubic-bezier(.65,0,.2,1)", fill: "backwards" }).finished);
+    }
 
     if (reduce.matches) {
       next.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 400, delay, fill: "backwards" });
@@ -69,16 +72,14 @@
       const oc = [...old.children];
       const step = Math.min(22, 320 / Math.max(oc.length, 1));
       const outs = oc.map((c, i) => c.animate(
-        [{ transform: "translateY(0)", opacity: 1, filter: "blur(0)" },
-         { transform: "translateY(-105%)", opacity: 0, filter: "blur(7px)" }],
-        { duration: 560, delay: delay + i * step, easing: "cubic-bezier(.55,0,.8,.3)", fill: "forwards" }).finished);
+        [{ transform: "translateY(0)", opacity: 1 }, { transform: "translateY(-105%)", opacity: 0 }],
+        { duration: 520, delay: delay + i * step, easing: "cubic-bezier(.55,0,.8,.3)", fill: "forwards" }).finished);
       done.push(Promise.all(outs).then(() => old.remove()));
     }
     const nc = [...next.children];
     const step = Math.min(26, 380 / Math.max(nc.length, 1));
     nc.forEach((c, i) => c.animate(
-      [{ transform: "translateY(105%)", opacity: 0, filter: "blur(8px)" },
-       { transform: "translateY(0)", opacity: 1, filter: "blur(0)" }],
+      [{ transform: "translateY(105%)", opacity: 0 }, { transform: "translateY(0)", opacity: 1 }],
       { duration: 820, delay: delay + 200 + i * step, easing: "cubic-bezier(.16,1,.3,1)", fill: "backwards" }));
     done.push(new Promise(r => setTimeout(r, delay + 200 + nc.length * step + 820)));
     return Promise.all(done);
@@ -90,15 +91,17 @@
   };
 
   /* ---------- scene driver ---------- */
+  const row = document.createElement("div"); row.className = "row"; ticksEl.appendChild(row);
   const ticks = SCENES.map((s, i) => {
     const b = document.createElement("button");
     b.className = "tick"; b.setAttribute("aria-label", `Scene ${i + 1}: ${s.a} and ${s.b}`);
     b.innerHTML = "<i></i>";
     b.addEventListener("click", () => go(i));
-    ticksEl.appendChild(b);
+    row.appendChild(b);
     return b;
   });
   const markTicks = () => ticks.forEach((t, i) => {
+    t.setAttribute("aria-current", i === idx ? "true" : "false");
     t.classList.toggle("done", i < idx);
     t.classList.remove("on");
     if (i === idx) { void t.offsetWidth; t.style.setProperty("--dur", HOLD + "ms"); t.classList.add("on"); }
@@ -124,8 +127,20 @@
     if (!paused) schedule(HOLD);
   }
 
+  const pp = document.createElement("button");
+  pp.className = "pp"; pp.type = "button"; pp.setAttribute("aria-label", "Pause headline animation");
+  pp.innerHTML = '<svg class="i-pause" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 1h3.5v12H2zM8.5 1H12v12H8.5z"/></svg><svg class="i-play" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1l10 6-10 6z"/></svg>';
+  ticksEl.prepend(pp);  // sits before the tick row
+  let userPaused = false;
+  pp.addEventListener("click", () => {
+    userPaused = !userPaused;
+    document.body.classList.toggle("userpaused", userPaused);
+    pp.setAttribute("aria-label", userPaused ? "Play headline animation" : "Pause headline animation");
+    userPaused ? pause() : resume();
+  });
+
   const pause = () => { if (paused) return; paused = true; document.body.classList.add("paused"); clearTimeout(timer); remaining = Math.max(400, remaining - (performance.now() - startedAt)); };
-  const resume = () => { if (!paused) return; paused = false; document.body.classList.remove("paused"); if (!busy) schedule(remaining); };
+  const resume = () => { if (!paused || userPaused) return; paused = false; document.body.classList.remove("paused"); if (!busy) schedule(remaining); };
 
   const hero = $(".hero");
   hero.addEventListener("pointerenter", e => e.pointerType === "mouse" && pause());
@@ -159,6 +174,7 @@
     root.style.setProperty("--hue", s.hue);
     slots.forEach((slot, i) => {
       const t = i ? s.b : s.a;
+      slot.textContent = "";
       slot.appendChild(makeWord(t));
       setWidth(slot, t);
     });
