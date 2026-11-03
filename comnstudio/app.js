@@ -19,6 +19,8 @@
   const root = document.documentElement;
   const slots = [$("#slotA"), $("#slotB")];
   const tagEl = $("#tag");
+  const stacks = [...document.querySelectorAll(".stack")];
+  let stackIdx = 0;
   const ticksEl = $("#ticks");
   let idx = 0, timer = null, busy = false, paused = false, remaining = HOLD, startedAt = 0;
 
@@ -119,6 +121,9 @@
     idx = n;
     const s = SCENES[n];
     root.style.setProperty("--hue", s.hue);
+    stackIdx ^= 1;
+    stacks[stackIdx].style.setProperty("--hue", s.hue);
+    stacks.forEach((el, k) => el.classList.toggle("on", k === stackIdx));
     markTicks();
     swapTag(s.tag);
     document.querySelectorAll(".shelf").forEach((el, i) => el.classList.toggle("live", i === n));
@@ -168,10 +173,14 @@
     io.observe(el);
   });
 
+  // marquee only runs while visible
+  new IntersectionObserver(es => es.forEach(e => e.target.classList.toggle("vis", e.isIntersecting))).observe($(".band"));
+
   /* ---------- boot ---------- */
   const boot = () => {
     const s = SCENES[0];
     root.style.setProperty("--hue", s.hue);
+    stacks[0].style.setProperty("--hue", s.hue);
     slots.forEach((slot, i) => {
       const t = i ? s.b : s.a;
       slot.textContent = "";
