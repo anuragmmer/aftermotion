@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "web-design-basics-skill": {
+      "source": "anuragmmer/web-design-basics-skill",
+      "sourceType": "github",
+      "skillPath": "skills/web-design-basics-skill/SKILL.md",
+      "computedHash": "5e7e626ca55b9f92576ea1fd269a4071633a8ca3e78689e1874c64128ba0e597"
+    }
+  }
+}
